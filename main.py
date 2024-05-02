@@ -11,7 +11,7 @@ sd = mdg.subdomains()[0]
 mu = np.ones(sd.num_cells)
 l_squared = np.ones(sd.num_cells)
 
-disc = TPSA(sd, mu)
+disc = TPSA(sd, mu, l_squared)
 
 
 pass
