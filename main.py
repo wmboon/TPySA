@@ -22,8 +22,14 @@ rhs[(sd.dim - 1) * sd.num_cells : sd.dim * sd.num_cells] = sd.cell_volumes
 
 x = sps.linalg.spsolve(A, rhs)
 
+# Primal variables
 indices = sd.num_cells * np.cumsum([sd.dim, disc.dim_r(sd)])
 u, r, p = np.split(x, indices)
+
+# Dual variables
+y = disc.sigma @ x
+indices = sd.num_faces * np.cumsum([sd.dim, disc.dim_r(sd)])
+sigma, tau, v = np.split(y, indices)
 
 if sd.dim == 2:
     # we need to add the z component for the exporting
@@ -32,6 +38,7 @@ else:
     r = r.reshape((3, -1))
 
 u = u.reshape((3, -1))
+
 
 folder = os.path.dirname(os.path.abspath(__file__))
 save = pp.Exporter(sd, "sol_TPSA", folder_name=folder)
