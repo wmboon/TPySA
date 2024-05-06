@@ -4,9 +4,6 @@ import porepy as pp
 
 
 class TPSA:
-    def __init__(self) -> None:
-        pass
-
     @staticmethod
     def dim_r(sd: pp.Grid):
         # Returns the dimension of the rotation space (d choose 2)
@@ -19,7 +16,9 @@ class TPSA:
         Assemble the TPFA matrix, given material constants mu, l2, and lambda
         """
         # Save the unit normal vectors
-        self.face_normals = sd.face_normals / sd.face_areas
+        self.unit_normals = sd.face_normals / sd.face_areas
+        # Save the cell_face connectivity
+        self.find_cf = sps.find(sd.cell_faces)
 
         # Generate the matrices from (2.13) and (3.5)
         self.sigma = self.assemble_dual_var_map(sd, mu, l2)
@@ -38,23 +37,22 @@ class TPSA:
         """
         # Extract cell-face pairs
         cf = sps.csc_array(sd.cell_faces)
-        find_cf = sps.find(cf)
 
-        self.delta_ki = self.assemble_delta_ki(sd, find_cf)
+        self.delta_ki = self.assemble_delta_ki(sd)
 
         # Assemble the blocks of (3.5) where A_ij is the block coupling variable i and j.
-        mu_bar = self.harmonic_avg(find_cf, mu)
+        mu_bar = self.harmonic_avg(mu)
         A_uu = -2 * mu_bar[:, None] * cf
         A_uu = sps.block_diag([A_uu] * sd.dim)
 
-        l2_bar = self.harmonic_avg(find_cf, l2)
+        l2_bar = self.harmonic_avg(l2)
         A_rr = -l2_bar[:, None] * cf
         A_rr = sps.block_diag([A_rr] * self.dim_r(sd))
 
-        dk_mu = self.assemble_mu_dk(find_cf, mu, 2)
+        dk_mu = self.assemble_mu_dk(mu, 2)
         A_pp = -dk_mu[:, None] * cf
 
-        Xi = self.assemble_xi(find_cf, mu)
+        Xi = self.assemble_xi(mu)
         Xi_tilde = self.assemble_xi_tilde(Xi)
 
         A_ru = self.assemble_S_Xi(sd, Xi, True)
@@ -77,26 +75,26 @@ class TPSA:
 
         return face_areas[:, None] * A
 
-    def assemble_delta_ki(self, sd: pp.Grid, find_cf: tuple) -> np.ndarray:
+    def assemble_delta_ki(self, sd: pp.Grid) -> np.ndarray:
         """
         Compute delta_k^i from (1.12) for every face-cell pair
         """
-        faces, cells, orient = find_cf
+        faces, cells, orient = self.find_cf
         return np.sum(
             (
                 (sd.face_centers[:, faces] - sd.cell_centers[:, cells])
-                * (orient * self.face_normals[:, faces])
+                * (orient * self.unit_normals[:, faces])
             ),
             axis=0,
         )
 
-    def harmonic_avg(self, find_cf: tuple, mu: np.ndarray) -> np.ndarray:
+    def harmonic_avg(self, mu: np.ndarray) -> np.ndarray:
         """
         Compute the harmonic average of mu, divided by delta_k
         """
 
         # The numerator
-        faces, cells, _ = find_cf
+        faces, cells, _ = self.find_cf
         mu_delta_ki = mu[cells] / self.delta_ki
 
         prod = sps.csc_array((mu_delta_ki, (cells, faces)))
@@ -104,27 +102,25 @@ class TPSA:
         numerator = prod.data[prod.indptr[:-1]] * prod.data[prod.indptr[1:] - 1]
 
         # The denominator
-        denominator = self.assemble_mu_dk(find_cf, mu)
+        denominator = self.assemble_mu_dk(mu)
 
         return numerator * denominator
 
-    def assemble_mu_dk(
-        self, find_cf: tuple, mu: np.ndarray, alpha: float = 1
-    ) -> np.ndarray:
+    def assemble_mu_dk(self, mu: np.ndarray, alpha: float = 1) -> np.ndarray:
         """
         Compute 1 / alpha( mu_i delta_k^-i + mu_j delta_k^-j)
         for each face k with cells (i,j)
         """
-        faces, cells, _ = find_cf
+        faces, cells, _ = self.find_cf
         mu_delta_ki = mu[cells] / self.delta_ki
 
         return 1 / (alpha * np.bincount(faces, weights=mu_delta_ki))
 
-    def assemble_xi(self, find_cf: tuple, mu: np.ndarray) -> sps.sparray:
+    def assemble_xi(self, mu: np.ndarray) -> sps.sparray:
         """
         Compute the averaging operator Xi
         """
-        faces, cells, _ = find_cf
+        faces, cells, _ = self.find_cf
         Xi = sps.csc_array((mu[cells], (faces, cells)))
         Xi /= Xi.sum(axis=1)[:, None]
 
@@ -145,7 +141,7 @@ class TPSA:
         """
         Compute the adjoint of the asymmetry operator, acting on Xi
         """
-        nx, ny, nz = [n_i[:, None] * Xi for n_i in self.face_normals]
+        nx, ny, nz = [n_i[:, None] * Xi for n_i in self.unit_normals]
 
         if sd.dim == 3:
             return -sps.block_array(
@@ -169,7 +165,7 @@ class TPSA:
         """
         Normal times the averaging operator Xi
         """
-        normal_times_xi = [n_i[:, None] * Xi for n_i in self.face_normals]
+        normal_times_xi = [n_i[:, None] * Xi for n_i in self.unit_normals]
 
         if u_to_p:
             return sps.hstack(normal_times_xi[: sd.dim])
