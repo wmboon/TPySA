@@ -1,1 +1,5 @@
 *.pyc
+*.geo_unrolled
+*.vtu
+*.msh
+*.pvd
