@@ -1,16 +1,20 @@
 import numpy as np
 import scipy.sparse as sps
+import porepy as pp
 
 
 class TPSA:
     def __init__(self) -> None:
         pass
 
-    def dim_r(self, sd):
+    @staticmethod
+    def dim_r(sd: pp.Grid):
         # Returns the dimension of the rotation space (d choose 2)
         return sd.dim * (sd.dim - 1) // 2
 
-    def assemble(self, sd, mu, l2, labda):
+    def assemble(
+        self, sd: pp.Grid, mu: np.ndarray, l2: np.ndarray, labda: np.ndarray
+    ) -> sps.sparray:
         """
         Assemble the TPFA matrix, given material constants mu, l2, and lambda
         """
@@ -18,22 +22,24 @@ class TPSA:
         self.sigma = self.primary_to_dual_map(sd, mu, l2)
         div = self.div_map(sd)
 
-        #
         A = div @ self.sigma
         M = self.mass(sd, mu, labda)
 
         return A - M
 
-    def primary_to_dual_map(self, sd, mu, l2):
+    def primary_to_dual_map(
+        self, sd: pp.Grid, mu: np.ndarray, l2: np.ndarray
+    ) -> sps.sparray:
         """
         Assemble the matrix from (3.5) that maps primary to dual variables
         """
+        # Extract cell-face pairs
         cf = sps.csc_array(sd.cell_faces)
         find_cf = sps.find(cf)
 
         self.delta_ki = self.assemble_delta_ki(sd, find_cf)
-        # delta_k = np.bincount(faces, weights=delta_ki)
 
+        # Assemble the blocks of (3.5) where A_ij is the block coupling variable i and j.
         mu_bar = self.harmonic_avg(find_cf, mu)
         A_uu = -2 * mu_bar[:, None] * cf
         A_uu = sps.block_diag([A_uu] * sd.dim)
@@ -45,27 +51,32 @@ class TPSA:
         dk_mu = self.assemble_dk_mu(find_cf, mu, 2)
         A_pp = -dk_mu[:, None] * cf
 
-        chi = self.assemble_chi(find_cf, mu)
-        chi_tilde = self.assemble_chi_tilde(chi)
+        xi = self.assemble_xi(find_cf, mu)
+        xi_tilde = self.assemble_xi_tilde(xi)
 
-        A_ru = self.assemble_S_star(sd, chi, True)
-        A_ur = self.assemble_S_star(sd, chi_tilde, False)
+        A_ru = self.assemble_S_star_Xi(sd, xi, True)
+        A_ur = self.assemble_S_star_Xi(sd, xi_tilde, False)
 
-        A_pr = self.assemble_n_chi(sd, chi, True)
-        A_rp = self.assemble_n_chi(sd, chi_tilde, False)
+        A_pr = self.assemble_n_xi(sd, xi, True)
+        A_rp = self.assemble_n_xi(sd, xi_tilde, False)
 
+        # Assembly by blocks
+        # fmt: off
         A = sps.block_array(
-            [[A_uu, A_ur, A_rp], [A_ru, A_rr, None], [A_pr, None, A_pp]]
+            [[A_uu, A_ur, A_rp], 
+             [A_ru, A_rr, None], 
+             [A_pr, None, A_pp]]
         )
+        # fmt: on
 
         # Scaling with the face areas
         face_areas = np.tile(sd.face_areas, sd.dim + self.dim_r(sd) + 1)
 
         return face_areas[:, None] * A
 
-    def assemble_delta_ki(self, sd, find_cf):
+    def assemble_delta_ki(self, sd: pp.Grid, find_cf: tuple) -> np.ndarray:
         """
-        Computes delta_k^i from (1.12) for every face-cell pair
+        Compute delta_k^i from (1.12) for every face-cell pair
         """
         faces, cells, orient = find_cf
         return np.sum(
@@ -76,7 +87,7 @@ class TPSA:
             axis=0,
         )
 
-    def harmonic_avg(self, find_cf, mu):
+    def harmonic_avg(self, find_cf: tuple, mu: np.ndarray) -> np.ndarray:
         """
         Compute the harmonic average of mu, divided by delta_k
         """
@@ -94,73 +105,87 @@ class TPSA:
 
         return numerator * denominator
 
-    def assemble_dk_mu(self, find_cf, mu, alpha=1):
-        # delta_bar_k = np.bincount(faces, weights=1.0 / delta_ki)
+    def assemble_dk_mu(
+        self, find_cf: tuple, mu: np.ndarray, alpha: float = 1
+    ) -> np.ndarray:
+        """
+        Compute 1 / alpha( mu_i delta_k^-i + mu_j delta_k^-j)
+        for each face k with cells (i,j)
+        """
         faces, cells, _ = find_cf
         mu_delta_ki = mu[cells] / self.delta_ki
 
         return 1 / (alpha * np.bincount(faces, weights=mu_delta_ki))
 
-    def assemble_chi(self, find_cf, mu):
+    def assemble_xi(self, find_cf: tuple, mu: np.ndarray) -> sps.sparray:
+        """
+        Compute the averaging operator Xi
+        """
         faces, cells, _ = find_cf
+        Xi = sps.csc_array((mu[cells], (faces, cells)))
+        Xi /= Xi.sum(axis=1)[:, None]
 
-        Chi = sps.csc_array((mu[cells], (faces, cells)))
-        Chi /= Chi.sum(axis=1)[:, None]
-        return Chi
+        return Xi
 
-    def assemble_chi_tilde(self, Chi):
-        Chi_tilde = Chi.copy()
-        Chi_tilde.data = 1 - Chi_tilde.data
+    def assemble_xi_tilde(self, Xi: sps.sparray) -> sps.sparray:
+        """
+        Compute the converse averaging operator Xi_tilde
+        """
+        Xi_tilde = Xi.copy()
+        Xi_tilde.data = 1 - Xi_tilde.data
 
-        return Chi_tilde
+        return Xi_tilde
 
-    def assemble_S_star(self, sd, chi, u_to_r=True):
+    def assemble_S_star_Xi(
+        self, sd: pp.Grid, Xi: sps.sparray, u_to_r: bool = True
+    ) -> sps.sparray:
+        """
+        Compute the adjoint of the asymmetry operator, acting on xi
+        """
         nx, ny, nz = [n_i[:, None] for n_i in sd.face_normals / sd.face_areas]
 
         if sd.dim == 3:
             return -sps.block_array(
                 [
-                    [None, -nz * chi, ny * chi],
-                    [nz * chi, None, -nx * chi],
-                    [-ny * chi, nx * chi, None],
-                ],
-                format="csc",
+                    [None, -nz * Xi, ny * Xi],
+                    [nz * Xi, None, -nx * Xi],
+                    [-ny * Xi, nx * Xi, None],
+                ]
             )
         elif sd.dim == 2:
             if u_to_r:  # Maps from r to u
-                return -sps.hstack(
-                    [-ny * chi, nx * chi],
-                    format="csc",
-                )
+                return -sps.hstack([-ny * Xi, nx * Xi])
             else:  # Maps from r to u
-                return -sps.vstack(
-                    [ny * chi, -nx * chi],
-                    format="csc",
-                )
+                return -sps.vstack([ny * Xi, -nx * Xi])
         else:
             raise NotImplementedError("Dimension must be 2 or 3.")
 
-    def assemble_n_chi(self, sd, chi, u_to_p=True):
+    def assemble_n_xi(
+        self, sd: pp.Grid, xi: sps.sparray, u_to_p: bool = True
+    ) -> sps.sparray:
+        """
+        Normal times the averaging operator Xi
+        """
         normals = [n_i[:, None] for n_i in sd.face_normals / sd.face_areas]
-        normal_times_chi = [n_i * chi for n_i in normals[: sd.dim]]
+        normal_times_xi = [n_i * xi for n_i in normals[: sd.dim]]
 
         if u_to_p:
-            return sps.hstack(normal_times_chi, format="csc")
+            return sps.hstack(normal_times_xi)
         else:  # Maps from r to u
-            return sps.vstack(normal_times_chi, format="csc")
+            return sps.vstack(normal_times_xi)
 
-    def div_map(self, sd):
+    def div_map(self, sd: pp.Grid) -> sps.sparray:
         """
         The divergence operator on the product space
         """
         dim = sd.dim + self.dim_r(sd) + 1
-        return sps.block_diag([sd.cell_faces.T] * dim, format="csc")
+        return sps.block_diag([sd.cell_faces.T] * dim)
 
-    def mass(self, sd, mu, labda):
+    def mass(self, sd: pp.Grid, mu: np.ndarray, labda: np.ndarray) -> sps.sparray:
         """
         The diagonal terms
         """
-        M_u = sps.csc_array((sd.dim * sd.num_cells, sd.dim * sd.num_cells))
+        M_u = sps.dia_array((sd.dim * sd.num_cells, sd.dim * sd.num_cells))
         M_r = sps.diags_array(np.tile(1 / mu, self.dim_r(sd)))
         M_p = sps.diags_array(1 / labda)
 
