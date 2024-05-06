@@ -18,16 +18,19 @@ class TPSA:
         """
         Assemble the TPFA matrix, given material constants mu, l2, and lambda
         """
+        # Save the unit normal vectors
+        self.face_normals = sd.face_normals / sd.face_areas
+
         # Generate the matrices from (2.13) and (3.5)
-        self.sigma = self.primary_to_dual_map(sd, mu, l2)
-        div = self.div_map(sd)
+        self.sigma = self.assemble_dual_var_map(sd, mu, l2)
+        div = self.assemble_div(sd)
 
         A = div @ self.sigma
         M = self.mass(sd, mu, labda)
 
         return A - M
 
-    def primary_to_dual_map(
+    def assemble_dual_var_map(
         self, sd: pp.Grid, mu: np.ndarray, l2: np.ndarray
     ) -> sps.sparray:
         """
@@ -48,17 +51,17 @@ class TPSA:
         A_rr = -l2_bar[:, None] * cf
         A_rr = sps.block_diag([A_rr] * self.dim_r(sd))
 
-        dk_mu = self.assemble_dk_mu(find_cf, mu, 2)
+        dk_mu = self.assemble_mu_dk(find_cf, mu, 2)
         A_pp = -dk_mu[:, None] * cf
 
-        xi = self.assemble_xi(find_cf, mu)
-        xi_tilde = self.assemble_xi_tilde(xi)
+        Xi = self.assemble_xi(find_cf, mu)
+        Xi_tilde = self.assemble_xi_tilde(Xi)
 
-        A_ru = self.assemble_S_star_Xi(sd, xi, True)
-        A_ur = self.assemble_S_star_Xi(sd, xi_tilde, False)
+        A_ru = self.assemble_S_Xi(sd, Xi, True)
+        A_ur = self.assemble_S_Xi(sd, Xi_tilde, False)
 
-        A_pr = self.assemble_n_xi(sd, xi, True)
-        A_rp = self.assemble_n_xi(sd, xi_tilde, False)
+        A_pr = self.assemble_n_Xi(sd, Xi, True)
+        A_rp = self.assemble_n_Xi(sd, Xi_tilde, False)
 
         # Assembly by blocks
         # fmt: off
@@ -82,7 +85,7 @@ class TPSA:
         return np.sum(
             (
                 (sd.face_centers[:, faces] - sd.cell_centers[:, cells])
-                * (orient * sd.face_normals[:, faces] / sd.face_areas[faces])
+                * (orient * self.face_normals[:, faces])
             ),
             axis=0,
         )
@@ -101,11 +104,11 @@ class TPSA:
         numerator = prod.data[prod.indptr[:-1]] * prod.data[prod.indptr[1:] - 1]
 
         # The denominator
-        denominator = self.assemble_dk_mu(find_cf, mu)
+        denominator = self.assemble_mu_dk(find_cf, mu)
 
         return numerator * denominator
 
-    def assemble_dk_mu(
+    def assemble_mu_dk(
         self, find_cf: tuple, mu: np.ndarray, alpha: float = 1
     ) -> np.ndarray:
         """
@@ -136,45 +139,44 @@ class TPSA:
 
         return Xi_tilde
 
-    def assemble_S_star_Xi(
+    def assemble_S_Xi(
         self, sd: pp.Grid, Xi: sps.sparray, u_to_r: bool = True
     ) -> sps.sparray:
         """
-        Compute the adjoint of the asymmetry operator, acting on xi
+        Compute the adjoint of the asymmetry operator, acting on Xi
         """
-        nx, ny, nz = [n_i[:, None] for n_i in sd.face_normals / sd.face_areas]
+        nx, ny, nz = [n_i[:, None] * Xi for n_i in self.face_normals]
 
         if sd.dim == 3:
             return -sps.block_array(
                 [
-                    [None, -nz * Xi, ny * Xi],
-                    [nz * Xi, None, -nx * Xi],
-                    [-ny * Xi, nx * Xi, None],
+                    [None, -nz, ny],
+                    [nz, None, -nx],
+                    [-ny, nx, None],
                 ]
             )
         elif sd.dim == 2:
             if u_to_r:  # Maps from r to u
-                return -sps.hstack([-ny * Xi, nx * Xi])
+                return -sps.hstack([-ny, nx])
             else:  # Maps from r to u
-                return -sps.vstack([ny * Xi, -nx * Xi])
+                return -sps.vstack([ny, -nx])
         else:
             raise NotImplementedError("Dimension must be 2 or 3.")
 
-    def assemble_n_xi(
-        self, sd: pp.Grid, xi: sps.sparray, u_to_p: bool = True
+    def assemble_n_Xi(
+        self, sd: pp.Grid, Xi: sps.sparray, u_to_p: bool = True
     ) -> sps.sparray:
         """
         Normal times the averaging operator Xi
         """
-        normals = [n_i[:, None] for n_i in sd.face_normals / sd.face_areas]
-        normal_times_xi = [n_i * xi for n_i in normals[: sd.dim]]
+        normal_times_xi = [n_i[:, None] * Xi for n_i in self.face_normals]
 
         if u_to_p:
-            return sps.hstack(normal_times_xi)
+            return sps.hstack(normal_times_xi[: sd.dim])
         else:  # Maps from r to u
-            return sps.vstack(normal_times_xi)
+            return sps.vstack(normal_times_xi[: sd.dim])
 
-    def div_map(self, sd: pp.Grid) -> sps.sparray:
+    def assemble_div(self, sd: pp.Grid) -> sps.sparray:
         """
         The divergence operator on the product space
         """

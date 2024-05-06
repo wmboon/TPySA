@@ -6,14 +6,14 @@ import pygeon as pg
 
 from TPSA import TPSA
 
-# Gridding
+# Grid the unit cube
 sd = pg.unit_grid(3, 0.1, as_mdg=False)
 sd.compute_geometry()
 
 # Material parameters
-mu = np.ones(sd.num_cells)
-l_squared = np.ones(sd.num_cells)
-labda = np.ones(sd.num_cells)
+mu = np.full(sd.num_cells, 1.0)
+l_squared = np.full(sd.num_cells, 1.0)
+labda = np.full(sd.num_cells, 1.0)
 
 # Initiate the discretization class and assemble the lhs
 disc = TPSA()
