@@ -22,7 +22,7 @@ A = disc.assemble(sd, mu, l_squared, labda)
 # Assemble the rhs
 rhs = np.zeros(A.shape[0])
 
-# Set a positive force on the z-component
+# Set a (gravity-like) force on the z-component
 indices_uz = slice((sd.dim - 1) * sd.num_cells, sd.dim * sd.num_cells)
 rhs[indices_uz] = sd.cell_volumes
 

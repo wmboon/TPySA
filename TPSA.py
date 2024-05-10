@@ -13,7 +13,7 @@ class TPSA:
         self, sd: pp.Grid, mu: np.ndarray, l2: np.ndarray, labda: np.ndarray
     ) -> sps.sparray:
         """
-        Assemble the TPFA matrix, given material constants mu, l2, and lambda
+        Assemble the TPSA matrix, given material constants mu, l2, and lambda
         """
         # Save the unit normal vectors
         self.unit_normals = sd.face_normals / sd.face_areas
@@ -111,6 +111,9 @@ class TPSA:
         Compute 1 / alpha( mu_i delta_k^-i + mu_j delta_k^-j)
         for each face k with cells (i,j)
         """
+        if np.all(mu == 0):
+            return np.zeros(self.unit_normals.shape[1])
+
         faces, cells, _ = self.find_cf
         mu_delta_ki = mu[cells] / self.delta_ki
 
