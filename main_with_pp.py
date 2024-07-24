@@ -4,7 +4,7 @@ import numpy as np
 import porepy as pp
 import pygeon as pg
 
-from TPSA import TPSA
+from src.TPSA import TPSA
 
 # Grid the unit cube
 sd = pg.unit_grid(3, 0.1, as_mdg=False)
@@ -47,6 +47,6 @@ else:
 u = u.reshape((3, -1))
 
 # Export
-folder = os.path.dirname(os.path.abspath(__file__))
+folder = os.path.dirname(__file__)
 save = pp.Exporter(sd, "sol_TPSA", folder_name=folder)
 save.write_vtu([("u", u), ("r", r), ("p", p)])

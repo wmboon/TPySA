@@ -1,16 +1,16 @@
 import numpy as np
 import scipy.sparse as sps
-import porepy as pp
+from cartgrid import CartGrid as Grid
 
 
 class TPSA:
     @staticmethod
-    def dim_r(sd: pp.Grid):
+    def dim_r(sd: Grid):
         # Returns the dimension of the rotation space (d choose 2)
         return sd.dim * (sd.dim - 1) // 2
 
     def assemble(
-        self, sd: pp.Grid, mu: np.ndarray, l2: np.ndarray, labda: np.ndarray
+        self, sd: Grid, mu: np.ndarray, l2: np.ndarray, labda: np.ndarray
     ) -> sps.sparray:
         """
         Assemble the TPSA matrix, given material constants mu, l2, and lambda
@@ -30,7 +30,7 @@ class TPSA:
         return A - M
 
     def assemble_dual_var_map(
-        self, sd: pp.Grid, mu: np.ndarray, l2: np.ndarray
+        self, sd: Grid, mu: np.ndarray, l2: np.ndarray
     ) -> sps.sparray:
         """
         Assemble the matrix from (3.5) that maps primary to dual variables
@@ -75,7 +75,7 @@ class TPSA:
 
         return face_areas[:, None] * A
 
-    def assemble_delta_ki(self, sd: pp.Grid) -> np.ndarray:
+    def assemble_delta_ki(self, sd: Grid) -> np.ndarray:
         """
         Compute delta_k^i from (1.12) for every face-cell pair
         """
@@ -139,7 +139,7 @@ class TPSA:
         return Xi_tilde
 
     def assemble_S_Xi(
-        self, sd: pp.Grid, Xi: sps.sparray, u_to_r: bool = True
+        self, sd: Grid, Xi: sps.sparray, u_to_r: bool = True
     ) -> sps.sparray:
         """
         Compute the adjoint of the asymmetry operator, acting on Xi
@@ -163,7 +163,7 @@ class TPSA:
             raise NotImplementedError("Dimension must be 2 or 3.")
 
     def assemble_n_Xi(
-        self, sd: pp.Grid, Xi: sps.sparray, u_to_p: bool = True
+        self, sd: Grid, Xi: sps.sparray, u_to_p: bool = True
     ) -> sps.sparray:
         """
         Normal times the averaging operator Xi
@@ -175,14 +175,14 @@ class TPSA:
         else:  # Maps from r to u
             return sps.vstack(normal_times_xi[: sd.dim])
 
-    def assemble_div(self, sd: pp.Grid) -> sps.sparray:
+    def assemble_div(self, sd: Grid) -> sps.sparray:
         """
         The divergence operator on the product space
         """
         dim = sd.dim + self.dim_r(sd) + 1
         return sps.block_diag([sd.cell_faces.T] * dim)
 
-    def mass(self, sd: pp.Grid, mu: np.ndarray, labda: np.ndarray) -> sps.sparray:
+    def mass(self, sd: Grid, mu: np.ndarray, labda: np.ndarray) -> sps.sparray:
         """
         The diagonal terms
         """
