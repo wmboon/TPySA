@@ -17,7 +17,7 @@ labda = np.full(sd.num_cells, 1.0)
 
 # Initiate the discretization class and assemble the lhs
 disc = TPSA()
-A = disc.assemble(sd, mu, l_squared, labda)
+A = disc.discretize(sd, mu, l_squared, labda)
 
 # Assemble the rhs
 rhs = np.zeros(A.shape[0])

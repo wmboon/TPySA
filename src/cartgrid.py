@@ -3,7 +3,7 @@ import scipy.sparse as sps
 from opm.io.ecl import EGrid
 
 
-class CartGrid(object):
+class CartEGrid(EGrid):
     """
     Attributes:
         - dim
@@ -15,18 +15,20 @@ class CartGrid(object):
         - cell_volumes
     """
 
-    def __init__(self, egrid: EGrid):
-        self.dim = len(egrid.dimension)
-        self.nx, self.ny, self.nz = egrid.dimension
-        self.num_cells = np.prod(egrid.dimension)
-        self.cell_volumes = egrid.cellvolumes()
+    def __init__(self, egrid_file: str):
+        super().__init__(egrid_file)
+
+        self.dim = len(self.dimension)
+        self.nx, self.ny, self.nz = self.dimension
+        self.num_cells = np.prod(np.array(self.dimension))
+        self.cell_volumes = self.cellvolumes()
 
         lid_ind = self._find_lid_indices()
 
         self.cell_faces = self.compute_cell_faces(*lid_ind)
         self.num_faces = self.cell_faces.shape[0]
 
-        xyz = self._find_corners_xyz(egrid)
+        xyz = self._find_corners_xyz()
 
         self.face_normals = self.compute_face_normals(xyz, *lid_ind)
         self.face_areas = self.compute_face_areas()
@@ -34,12 +36,12 @@ class CartGrid(object):
         self.cell_centers = self.compute_cell_centers(xyz)
         self.face_centers = self.compute_face_centers(xyz, *lid_ind)
 
-    def _find_corners_xyz(self, egrid: EGrid):
+    def _find_corners_xyz(self):
         """
-        Returns a (num_cells, 8, 3) numpy array that contains the coordinates of the
+        Returns a (num_cells, 3, 8) numpy array that contains the coordinates of the
         corner points of each grid cell
         """
-        xyz = [egrid.xyz_from_active_index(k) for k in np.arange(egrid.active_cells)]
+        xyz = [self.xyz_from_active_index(k) for k in np.arange(self.active_cells)]
         return np.array(xyz)
 
     def _find_lid_indices(self):
@@ -92,7 +94,7 @@ class CartGrid(object):
         def cross(xyz, i, j, k=0):
             return np.cross(xyz[:, :, i] - xyz[:, :, k], xyz[:, :, j] - xyz[:, :, k]).T
 
-        # i-, j-, and k-
+        # i-, j-, and k- faces
         fn[:, 0 * self.num_cells : 1 * self.num_cells] = cross(xyz, 2, 4)
         fn[:, 1 * self.num_cells : 2 * self.num_cells] = cross(xyz, 4, 1)
         fn[:, 2 * self.num_cells : 3 * self.num_cells] = cross(xyz, 1, 2)
@@ -107,13 +109,14 @@ class CartGrid(object):
     def compute_face_centers(self, xyz, lid_c, lid_f):
         fc = np.empty((self.dim, self.num_faces))
 
+        # We define the face center as the average of the adjacent node coordinates
         def avg(xyz, indices):
             return np.mean(xyz[:, :, indices], axis=-1).T
 
-        # i-, j-, and k-
+        # i-, j-, and k- faces
         fc[:, 0 * self.num_cells : 1 * self.num_cells] = avg(xyz, [0, 2, 4, 6])
-        fc[:, 1 * self.num_cells : 2 * self.num_cells] = avg(xyz, [0, 1, 2, 3])
-        fc[:, 2 * self.num_cells : 3 * self.num_cells] = avg(xyz, [0, 1, 4, 5])
+        fc[:, 1 * self.num_cells : 2 * self.num_cells] = avg(xyz, [0, 1, 4, 5])
+        fc[:, 2 * self.num_cells : 3 * self.num_cells] = avg(xyz, [0, 1, 2, 3])
 
         # i+, j+, and k+ lids
         fc[:, lid_f[0]] = avg(xyz[lid_c[0], :, :], [1, 3, 5, 7])
