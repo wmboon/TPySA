@@ -14,110 +14,159 @@ from src.source_manager import set_mass_source
 from src.cartgrid import CartEGrid
 from src.TPSA import TPSA
 
-## Input
 
-dir_name = os.path.dirname(__file__)
-opmcase = os.path.join(dir_name, "data_single_phase/SINGLE_PHASE")
+class Lagged:
+    """docstring for Lagged."""
 
-data_file = f"{opmcase}.DATA"
-deck = Parser().parse(data_file)
+    def __init__(self, n_time, n_space, opm_case=""):
+        self.source = np.zeros(n_space)
+        self.str = "lagged"
 
-## Initialize flow simulator
+    def save_source(self, current_step, source):
+        self.source = source
 
-state = EclipseState(deck)
-schedule = Schedule(deck, state)
-summary_config = SummaryConfig(deck, state, schedule)
+    def get_source(self, current_step):
+        return self.source
 
-sim = BlackOilSimulator(deck, state, schedule, summary_config)
-sim.step_init()  # This creates the EGRID file
-
-## Extract grid
-
-egrid_file = f"{opmcase}.EGRID"
-grid = CartEGrid(egrid_file)
-
-## Initialize Mechanics
-
-tpsa = TPSA(grid)
-data = {
-    "mu": np.full(grid.num_cells, 1),
-    "lambda": np.full(grid.num_cells, 1),
-    "l2": np.full(grid.num_cells, 1),
-    "alpha": np.full(grid.num_cells, 1),
-    "gravity": np.full(grid.num_cells, 0)
-}
-tpsa.discretize(data)
-
-## Simulate
-
-p0 = sim.get_primary_variable("pressure")
-sp0 = np.zeros_like(p0)
-
-sim.step()  # do one time step so that we get access to get_dt()
-
-while not sim.check_simulation_finished():
-
-    """ # current_step = sim.current_step()
-    # if current_step == 5:
-    #     set_mass_source(grid, schedule, 1e3)
-    # elif current_step == 15:
-    #     set_mass_source(grid, schedule, 0) """
-
-    # Compute new water and solid pressures
-    p = sim.get_primary_variable("pressure")
-    u, r, sp = tpsa.solve(data, p)
-
-    # Compute the changes in pressures
-    dt = sim.get_dt()
-    delta_p = (p - p0) / dt
-    delta_sp = (sp - sp0) / dt
-
-    # Set the new mass source
-    source = delta_sp + data["alpha"] * delta_p
-    source *= -data["alpha"] / data["lambda"]
-
-    set_mass_source(grid, schedule, source)
-
-    # Save the pressures for the next time step
-    p0 = p.copy()
-    sp0 = sp.copy()
-
-    # Advance
-    sim.step()
-
-sim.step_cleanup()
-
-ecl_summary = ESmry(f"{opmcase}.SMSPEC")
-
-## Postprocessing
-time = ecl_summary["TIME"]
-BPR = ecl_summary["BPR:1,1,1"]
-
-import matplotlib.pyplot as plt
-
-plt.figure(0)
-plt.plot(time, BPR)
-# plt.show()
-
-ax = plt.figure(1).add_subplot(projection="3d")
-x, y, z = grid.cell_centers
-u_x, u_y, u_z = u.reshape((3, -1), order="F") / np.amax(u)
-ax.quiver(x, y, z, u_x, u_y, u_z)
-
-plt.show()
-
-pass
-## Random handy tools
-# grid_file = EclFile(f"{opmcase}.EGRID")
-# init_file = EclFile(f"{opmcase}.INIT")
-
-# nnc1 = grid_file["NNC1"]
-# nnc2 = grid_file["NNC2"]
-# tran = init_file["TRANNNC"]
-
-# nnc_list = []
-# for g1, g2, t in zip(nnc1, nnc2, tran):
-#     nnc_list.append((g1, g2, t))
+    def cleanup(self):
+        pass
 
 
-# grid = state.grid()
+class Iterative:
+    """docstring for Iterative."""
+
+    def __init__(self, n_time, n_space, opm_case=""):
+        self.sources_file = f"{opm_case}_sources.npz"
+        self.str = "iterative"
+
+        try:
+            self.source = np.load(self.sources_file)["source"]
+        except Exception:
+            self.source = np.zeros((n_time, n_space))
+
+        if self.source.shape != (n_time, n_space):
+            self.source = np.zeros((n_time, n_space))
+
+    def save_source(self, current_step, source):
+        self.source[current_step - 1] = source
+
+    def get_source(self, current_step):
+        return self.source[current_step]
+
+    def cleanup(self):
+        np.savez(self.sources_file, source=self.source)
+
+
+if __name__ == "__main__":
+
+    ## Input
+
+    case_str = "data_single_phase/SINGLE_PHASE"
+
+    dir_name = os.path.dirname(__file__)
+    opmcase = os.path.join(dir_name, case_str)
+
+    data_file = f"{opmcase}.DATA"
+    deck = Parser().parse(data_file)
+
+    ## Initialize flow simulator
+
+    state = EclipseState(deck)
+    schedule = Schedule(deck, state)
+    summary_config = SummaryConfig(deck, state, schedule)
+    sim = BlackOilSimulator(deck, state, schedule, summary_config)
+
+    sim.step_init()  # This creates the EGRID file
+
+    ## Extract grid
+
+    egrid_file = f"{opmcase}.EGRID"
+    grid = CartEGrid(egrid_file)
+
+    ## Initialize Mechanics
+
+    tpsa_disc = TPSA(grid)
+    data = {
+        "mu": np.full(grid.num_cells, 5e1),
+        "lambda": np.full(grid.num_cells, 5e1),
+        "l2": np.full(grid.num_cells, 1),
+        "alpha": np.full(grid.num_cells, 1),
+        "gravity": np.full(grid.num_cells, 0),
+    }
+    tpsa_disc.discretize(data)
+
+    ## Choose coupler
+
+    n_time = len(schedule.timesteps)
+    n_space = state.grid().nactive
+
+    coupler = Iterative(n_time, n_space, opmcase)
+    # coupler = Lagged(n_time, n_space)
+
+    ## Simulate
+
+    fluid_p0 = sim.get_primary_variable("pressure")
+    solid_p0 = np.zeros_like(fluid_p0)
+
+    set_mass_source(grid, schedule, coupler.get_source(0))
+    sim.step()  # do one time step so that we get access to get_dt()
+
+    while not sim.check_simulation_finished():
+
+        dt = sim.get_dt()
+        current_step = sim.current_step()
+
+        if current_step == 8 or current_step == 16:
+            additional_source = 1e7 / dt
+        else:
+            additional_source = 0
+
+        # Compute new fluid and solid pressures
+        fluid_p = sim.get_primary_variable("pressure")
+        displ, rotat, solid_p = tpsa_disc.solve(data, fluid_p)
+
+        # Compute the changes in pressures
+        delta_fp = (fluid_p - fluid_p0) / dt
+        delta_sp = (solid_p - solid_p0) / dt
+
+        # Set the new mass source
+        source = delta_sp + data["alpha"] * delta_fp
+        source *= -data["alpha"] / data["lambda"]
+        source += additional_source
+
+        coupler.save_source(current_step, source)
+        set_mass_source(grid, schedule, coupler.get_source(current_step))
+
+        # Save the pressures for the next time step
+        fluid_p0 = fluid_p.copy()
+        solid_p0 = solid_p.copy()
+
+        # Advance
+        sim.step()
+
+    coupler.cleanup()
+    sim.step_cleanup()
+
+    ## Postprocessing
+    ecl_summary = ESmry(f"{opmcase}.SMSPEC")
+    time = ecl_summary["TIME"]
+    # BPR1 = ecl_summary["BPR:1,1,1"]
+    BPR = ecl_summary["BPR:5,5,5"]
+
+    array_str = opmcase + coupler.str
+    np.savez(array_str, p=BPR, t=time)
+
+    # ax = plt.figure(1).add_subplot(projection="3d")
+    # x, y, z = grid.cell_centers
+    # u_x, u_y, u_z = displ.reshape((3, -1), order="F") / np.amax(displ)
+    # ax.quiver(x, y, z, u_x, u_y, u_z)
+
+    # plt.show()
+
+    pass
+
+    # nnc_list = []
+    # for g1, g2, t in zip(nnc1, nnc2, tran):
+    #     nnc_list.append((g1, g2, t))
+
+    # grid = state.grid()

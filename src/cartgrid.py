@@ -16,6 +16,12 @@ class CartEGrid(EGrid):
     """
 
     def __init__(self, egrid_file: str):
+        """
+        Creates a Grid object from a given egrid file
+
+        Args:
+            egrid_file (str): location of the egrid file
+        """
         super().__init__(egrid_file)
 
         self.dim = len(self.dimension)
