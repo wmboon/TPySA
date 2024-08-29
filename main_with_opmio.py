@@ -16,7 +16,7 @@ from src.TPSA import TPSA
 
 
 class Lagged:
-    """docstring for Lagged."""
+    """docstring for Lagged coupler."""
 
     def __init__(self, n_time, n_space, opm_case=""):
         self.source = np.zeros(n_space)
@@ -33,7 +33,7 @@ class Lagged:
 
 
 class Iterative:
-    """docstring for Iterative."""
+    """docstring for Iterative coupler."""
 
     def __init__(self, n_time, n_space, opm_case=""):
         self.sources_file = f"{opm_case}_sources.npz"
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     summary_config = SummaryConfig(deck, state, schedule)
     sim = BlackOilSimulator(deck, state, schedule, summary_config)
 
-    sim.step_init()  # This creates the EGRID file
+    sim.step_init()  # Create the EGRID file
 
     ## Extract grid
 
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     }
     tpsa_disc.discretize(data)
 
-    ## Choose coupler
+    ## Choose coupling scheme
 
     n_time = len(schedule.timesteps)
     n_space = state.grid().nactive
@@ -109,17 +109,16 @@ if __name__ == "__main__":
     solid_p0 = np.zeros_like(fluid_p0)
 
     set_mass_source(grid, schedule, coupler.get_source(0))
-    sim.step()  # do one time step so that we get access to get_dt()
+    sim.step()  # do the first time step so that we get access to get_dt()
 
     while not sim.check_simulation_finished():
-
         dt = sim.get_dt()
         current_step = sim.current_step()
 
         if current_step == 8 or current_step == 16:
-            additional_source = 1e7 / dt
+            injection_rate = 1e7 / dt
         else:
-            additional_source = 0
+            injection_rate = 0
 
         # Compute new fluid and solid pressures
         fluid_p = sim.get_primary_variable("pressure")
@@ -129,11 +128,12 @@ if __name__ == "__main__":
         delta_fp = (fluid_p - fluid_p0) / dt
         delta_sp = (solid_p - solid_p0) / dt
 
-        # Set the new mass source
+        # Compute the mass source
         source = delta_sp + data["alpha"] * delta_fp
         source *= -data["alpha"] / data["lambda"]
-        source += additional_source
+        source += injection_rate
 
+        # Set the mass source
         coupler.save_source(current_step, source)
         set_mass_source(grid, schedule, coupler.get_source(current_step))
 
@@ -144,29 +144,16 @@ if __name__ == "__main__":
         # Advance
         sim.step()
 
+    ## Postprocessing
     coupler.cleanup()
     sim.step_cleanup()
 
-    ## Postprocessing
     ecl_summary = ESmry(f"{opmcase}.SMSPEC")
     time = ecl_summary["TIME"]
-    # BPR1 = ecl_summary["BPR:1,1,1"]
     BPR = ecl_summary["BPR:5,5,5"]
 
+    ## Save the solution as numpy arrays
     array_str = opmcase + coupler.str
-    np.savez(array_str, p=BPR, t=time)
-
-    # ax = plt.figure(1).add_subplot(projection="3d")
-    # x, y, z = grid.cell_centers
-    # u_x, u_y, u_z = displ.reshape((3, -1), order="F") / np.amax(displ)
-    # ax.quiver(x, y, z, u_x, u_y, u_z)
-
-    # plt.show()
+    np.savez(array_str, p=BPR, u=displ, p_s=solid_p, r_s=rotat, t=time)
 
     pass
-
-    # nnc_list = []
-    # for g1, g2, t in zip(nnc1, nnc2, tran):
-    #     nnc_list.append((g1, g2, t))
-
-    # grid = state.grid()
