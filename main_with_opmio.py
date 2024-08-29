@@ -8,54 +8,12 @@ from opm.io.parser import Parser
 from opm.io.ecl_state import EclipseState
 from opm.io.schedule import Schedule
 from opm.io.summary import SummaryConfig
-from opm.io.ecl import ESmry, EclFile
+from opm.io.ecl import ESmry
 
 from src.source_manager import set_mass_source
 from src.cartgrid import CartEGrid
+from src.coupler import Iterative, Lagged
 from src.TPSA import TPSA
-
-
-class Lagged:
-    """docstring for Lagged coupler."""
-
-    def __init__(self, n_time, n_space, opm_case=""):
-        self.source = np.zeros(n_space)
-        self.str = "lagged"
-
-    def save_source(self, current_step, source):
-        self.source = source
-
-    def get_source(self, current_step):
-        return self.source
-
-    def cleanup(self):
-        pass
-
-
-class Iterative:
-    """docstring for Iterative coupler."""
-
-    def __init__(self, n_time, n_space, opm_case=""):
-        self.sources_file = f"{opm_case}_sources.npz"
-        self.str = "iterative"
-
-        try:
-            self.source = np.load(self.sources_file)["source"]
-        except Exception:
-            self.source = np.zeros((n_time, n_space))
-
-        if self.source.shape != (n_time, n_space):
-            self.source = np.zeros((n_time, n_space))
-
-    def save_source(self, current_step, source):
-        self.source[current_step - 1] = source
-
-    def get_source(self, current_step):
-        return self.source[current_step]
-
-    def cleanup(self):
-        np.savez(self.sources_file, source=self.source)
-
 
 if __name__ == "__main__":
 
@@ -76,11 +34,12 @@ if __name__ == "__main__":
     summary_config = SummaryConfig(deck, state, schedule)
     sim = BlackOilSimulator(deck, state, schedule, summary_config)
 
-    sim.step_init()  # Create the EGRID file
+    sim.step_init()  # Creates the EGRID file
 
     ## Extract grid
 
     egrid_file = f"{opmcase}.EGRID"
+
     grid = CartEGrid(egrid_file)
 
     ## Initialize Mechanics
