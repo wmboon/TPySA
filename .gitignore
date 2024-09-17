@@ -5,3 +5,8 @@
 *.pvd
 *.pvsm
 *.json
+*.DBG
+*.PRT
+*.SMSPEC
+*.UNRST
+*.UNSMRY
