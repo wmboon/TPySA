@@ -9,15 +9,13 @@ from opm.io.schedule import Schedule
 from opm.io.summary import SummaryConfig
 from opm.io.ecl import ESmry
 
-from src.grid import Grid
-from src.couplers import Iterative, Lagged
-from src.TPSA import TPSA
+import src
 
 if __name__ == "__main__":
 
-    ## Input deck
+    ## Parse deck
 
-    case_str = "tests/data/fourblocks/TEST"
+    case_str = "tests/data/four_blocks_fullshift/FOURBLOCKS"
     # case_str = "data_single_phase/SINGLE_PHASE"
 
     dir_name = os.path.dirname(__file__)
@@ -38,11 +36,11 @@ if __name__ == "__main__":
     ## Extract grid
 
     egrid_file = f"{opmcase}.EGRID"
-    grid = Grid(egrid_file)
+    grid = src.Grid(egrid_file)
 
     ## Initialize Mechanics
 
-    tpsa_disc = TPSA(grid)
+    tpsa_disc = src.TPSA(grid)
     data = {
         "mu": np.full(grid.num_cells, 5e1),
         "lambda": np.full(grid.num_cells, 5e1),
@@ -55,10 +53,10 @@ if __name__ == "__main__":
     ## Choose coupling scheme
 
     n_time = len(schedule.timesteps)
-    n_space = state.grid().nactive
+    n_space = grid.num_cells
 
-    # coupler = Iterative(n_space, n_time, opmcase)
-    coupler = Lagged(n_space)
+    # coupler = src.Iterative(n_space, n_time, opmcase)
+    coupler = src.Lagged(n_space)
 
     ## Simulate
 

@@ -12,14 +12,19 @@ from opm.io.ecl import EclFile, EGrid
 
 class Grid(EGrid):
     """
-    Attributes:
+    Attributes required by TPSA:
         - dim
+        - cell_centers
+        - cell_volumes
+        - face_centers
         - face_normals
         - face_areas
         - cell_faces
-        - cell_centers
-        - face_centers
-        - cell_volumes
+
+    Attributes further desired by PorePy:
+        - num_cells/num_faces/num_nodes
+        - nodes
+        - face_nodes
     """
 
     def __init__(self, egrid_file: str, result_fname="results.grdecl", minpv=0):
@@ -27,11 +32,11 @@ class Grid(EGrid):
 
         grid_ecl = EclFile(egrid_file)
 
-        # grid pillars, array of (nx+1)*(ny+1)*6 elements
+        # Grid pillars, array of (nx+1)*(ny+1)*6 elements
         self.coord = grid_ecl["COORD"].astype(float)
-        # grid nodes depths, array of nx*ny*nz*8 elements
+        # Grid nodes depths, array of nx*ny*nz*8 elements
         self.zcorn = grid_ecl["ZCORN"].astype(float)
-        # integer array of nx*ny*nz elements, 0 - inactive cell, 1 - active cell
+        # Integer array of nx*ny*nz elements, 0 - inactive cell, 1 - active cell
         self.actnum = grid_ecl["ACTNUM"]
 
         dims_cpp = index_vector(self.dimension)
@@ -52,13 +57,20 @@ class Grid(EGrid):
         self.face_normals = vectors_to_np(unstr_grid.face_normals)
         self.face_centers = vectors_to_np(unstr_grid.face_centroids)
         self.cell_centers = vectors_to_np(unstr_grid.cell_centroids)
+        self.nodes = vectors_to_np(unstr_grid.node_coordinates)
 
         self.cell_volumes = scalars_to_np(unstr_grid.cell_volumes)
         self.face_areas = scalars_to_np(unstr_grid.face_areas)
 
-        assert np.allclose(self.face_areas, np.linalg.norm(self.face_normals, axis=0))
-
         self.cell_faces = self.compute_cell_faces(unstr_grid)
+        self.face_nodes = self.compute_face_nodes(unstr_grid)
+
+    def compute_face_nodes(self, unstr_grid: UnstructuredGrid):
+        indptr = scalars_to_np(unstr_grid.face_nodepos)[: self.num_faces + 1]
+        indices = scalars_to_np(unstr_grid.face_nodes)[: indptr[-1]]
+        data = np.ones_like(indices, dtype=bool)
+
+        return sps.csc_array((data, indices, indptr))
 
     def compute_cell_faces(self, unstr_grid: UnstructuredGrid):
         face_cells = unstr_grid.face_cells[: self.num_faces * 2]

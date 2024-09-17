@@ -7,6 +7,9 @@
 ### Flags for Python bindings
 https://github.com/OPM/opm-simulators/tree/master/python
 
+### Install opmcpg
+https://pypi.org/project/opmcpg/
+
 ## More problems
 
 ### PYACTION does not recognize keyword "SOURCE"
