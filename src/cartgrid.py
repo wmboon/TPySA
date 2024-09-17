@@ -3,6 +3,9 @@ import scipy.sparse as sps
 from opm.io.ecl import EGrid
 
 
+""" Deprecated. """
+
+
 class CartEGrid(EGrid):
     """
     Attributes:

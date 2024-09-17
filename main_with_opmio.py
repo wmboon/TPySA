@@ -3,23 +3,22 @@ import numpy as np
 
 from opm.simulators import BlackOilSimulator
 
-from opm.io import Parser
 from opm.io.parser import Parser
 from opm.io.ecl_state import EclipseState
 from opm.io.schedule import Schedule
 from opm.io.summary import SummaryConfig
 from opm.io.ecl import ESmry
 
-from src.source_manager import set_mass_source
-from src.cartgrid import CartEGrid
-from src.coupler import Iterative, Lagged
+from src.grid import Grid
+from src.couplers import Iterative, Lagged
 from src.TPSA import TPSA
 
 if __name__ == "__main__":
 
-    ## Input
+    ## Input deck
 
-    case_str = "data_single_phase/SINGLE_PHASE"
+    case_str = "tests/data/fourblocks/TEST"
+    # case_str = "data_single_phase/SINGLE_PHASE"
 
     dir_name = os.path.dirname(__file__)
     opmcase = os.path.join(dir_name, case_str)
@@ -39,8 +38,7 @@ if __name__ == "__main__":
     ## Extract grid
 
     egrid_file = f"{opmcase}.EGRID"
-
-    grid = CartEGrid(egrid_file)
+    grid = Grid(egrid_file)
 
     ## Initialize Mechanics
 
@@ -59,15 +57,15 @@ if __name__ == "__main__":
     n_time = len(schedule.timesteps)
     n_space = state.grid().nactive
 
-    coupler = Iterative(n_time, n_space, opmcase)
-    # coupler = Lagged(n_time, n_space)
+    # coupler = Iterative(n_space, n_time, opmcase)
+    coupler = Lagged(n_space)
 
     ## Simulate
 
     fluid_p0 = sim.get_primary_variable("pressure")
     solid_p0 = np.zeros_like(fluid_p0)
 
-    set_mass_source(grid, schedule, coupler.get_source(0))
+    coupler.set_mass_source(grid, schedule, 0)
     sim.step()  # do the first time step so that we get access to get_dt()
 
     while not sim.check_simulation_finished():
@@ -94,7 +92,7 @@ if __name__ == "__main__":
 
         # Set the mass source
         coupler.save_source(current_step, source)
-        set_mass_source(grid, schedule, coupler.get_source(current_step))
+        coupler.set_mass_source(grid, schedule, current_step)
 
         # Save the pressures for the next time step
         fluid_p0 = fluid_p.copy()
@@ -112,7 +110,7 @@ if __name__ == "__main__":
     BPR = ecl_summary["BPR:5,5,5"]
 
     ## Save the solution as numpy arrays
-    array_str = opmcase + coupler.str
+    array_str = opmcase + "_" + coupler.str
     np.savez(array_str, p=BPR, u=displ, p_s=solid_p, r_s=rotat, t=time)
 
     pass
