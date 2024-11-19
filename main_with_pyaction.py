@@ -1,6 +1,6 @@
 import subprocess
 
-subprocess.run(["flow", "data_pyaction/PYACTION_TEST.DATA"])
+subprocess.run(["flow", "tests/data/pyaction/PYACTION_TEST.DATA"])
 
 """ 
 Shows the following warning:

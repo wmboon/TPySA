@@ -8,8 +8,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import src
 
 
-class CartGridTest(unittest.TestCase):
-    def test_small_grid(self):
+class NNC_test(unittest.TestCase):
+    def test_nnc_grid(self):
         case_str = "data/9_editnnc/9_EDITNNC"
         dir_name = os.path.dirname(__file__)
         opmcase = os.path.join(dir_name, case_str)
@@ -32,4 +32,4 @@ class CartGridTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    CartGridTest().test_small_grid()
+    NNC_test().test_nnc_grid()

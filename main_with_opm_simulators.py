@@ -15,8 +15,8 @@ if __name__ == "__main__":
 
     ## Parse deck
 
-    case_str = "tests/data/four_blocks_fullshift/FOURBLOCKS"
-    # case_str = "data_single_phase/SINGLE_PHASE"
+    # case_str = "tests/data/four_blocks_fullshift/FOURBLOCKS"
+    case_str = "tests/data/single_phase/SINGLE_PHASE"
 
     dir_name = os.path.dirname(__file__)
     opmcase = os.path.join(dir_name, case_str)
@@ -49,6 +49,15 @@ if __name__ == "__main__":
         "gravity": np.full(grid.num_cells, 0),
     }
     tpsa_disc.discretize(data)
+
+    # double check that ROCKBIOT is inserted appropriately
+    rock_biot = data["alpha"] * data["alpha"] / data["lambda"]
+    rock_biot_ecl = state.field_props()["ROCKBIOT"]
+
+    if not np.allclose(rock_biot, rock_biot_ecl):
+        import warnings
+
+        warnings.warn("Mismatch between the rock_biot coefficient input.")
 
     ## Choose coupling scheme
 
