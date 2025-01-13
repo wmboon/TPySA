@@ -13,12 +13,12 @@ class Coupler:
             source = np.full(grid.num_cells, source)
 
         # Convert to string
-        source_str = self.source_stringer(grid, source)
+        source_str = self.source_to_str(grid, source)
 
         # Update the keyword in the schedule
         schedule.insert_keywords(source_str)
 
-    def source_stringer(self, grid: EGrid, source: np.ndarray):
+    def source_to_str(self, grid: EGrid, source: np.ndarray):
 
         output = [""] * len(source)
         for c, s in enumerate(source):

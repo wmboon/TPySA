@@ -9,7 +9,7 @@ from opm.io.schedule import Schedule
 from opm.io.summary import SummaryConfig
 from opm.io.ecl import ESmry
 
-import src
+import tpysa
 
 if __name__ == "__main__":
 
@@ -17,6 +17,7 @@ if __name__ == "__main__":
 
     # case_str = "tests/data/four_blocks_fullshift/FOURBLOCKS"
     case_str = "tests/data/single_phase/SINGLE_PHASE"
+    # case_str = "tests/data/spe1/SPE1CASE1"
 
     dir_name = os.path.dirname(__file__)
     opmcase = os.path.join(dir_name, case_str)
@@ -36,11 +37,11 @@ if __name__ == "__main__":
     ## Extract grid
 
     egrid_file = f"{opmcase}.EGRID"
-    grid = src.Grid(egrid_file)
+    grid = tpysa.Grid(egrid_file)
 
     ## Initialize Mechanics
 
-    tpsa_disc = src.TPSA(grid)
+    tpsa_disc = tpysa.TPSA(grid)
     data = {
         "mu": np.full(grid.num_cells, 5e1),
         "lambda": np.full(grid.num_cells, 5e1),
@@ -61,11 +62,11 @@ if __name__ == "__main__":
 
     ## Choose coupling scheme
 
-    n_time = len(schedule.timesteps)
+    n_time = len(schedule.reportsteps)
     n_space = grid.num_cells
 
-    # coupler = src.Iterative(n_space, n_time, opmcase)
-    coupler = src.Lagged(n_space)
+    # coupler = tpysa.Iterative(n_space, n_time, opmcase)
+    coupler = tpysa.Lagged(n_space)
 
     ## Simulate
 

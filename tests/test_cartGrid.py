@@ -1,11 +1,9 @@
 import unittest
 
 import numpy as np
-import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-import src
+import tpysa
 
 
 class CartGridTest(unittest.TestCase):
@@ -15,7 +13,7 @@ class CartGridTest(unittest.TestCase):
         opmcase = os.path.join(dir_name, case_str)
 
         egrid_file = f"{opmcase}.EGRID"
-        grid = src.Grid(egrid_file)
+        grid = tpysa.Grid(egrid_file)
 
         self.assertEqual(grid.num_cells, 8)
 

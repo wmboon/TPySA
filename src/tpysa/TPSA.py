@@ -1,15 +1,17 @@
 import numpy as np
 import scipy.sparse as sps
-from src.cartgrid import CartEGrid as Grid
+
+import tpysa
 
 
 class TPSA:
-    def __init__(self, grid: Grid):
+    def __init__(self, grid: tpysa.Grid):
         self.sd = grid
 
         # save the dimension of the rotation space (d choose 2)
         self.dim_r = grid.dim * (grid.dim - 1) // 2
 
+        # Numbers of degrees of freedom for the displacement, rotation, and pressure
         self.ndofs = grid.num_cells * np.array([grid.dim, self.dim_r, 1])
 
     def discretize(self, data: dict) -> sps.sparray:

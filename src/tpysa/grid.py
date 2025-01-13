@@ -65,14 +65,14 @@ class Grid(EGrid):
         self.cell_faces = self.compute_cell_faces(unstr_grid)
         self.face_nodes = self.compute_face_nodes(unstr_grid)
 
-    def compute_face_nodes(self, unstr_grid: UnstructuredGrid):
+    def compute_face_nodes(self, unstr_grid: UnstructuredGrid) -> sps.csc_array:
         indptr = scalars_to_np(unstr_grid.face_nodepos)[: self.num_faces + 1]
         indices = scalars_to_np(unstr_grid.face_nodes)[: indptr[-1]]
         data = np.ones_like(indices, dtype=bool)
 
         return sps.csc_array((data, indices, indptr))
 
-    def compute_cell_faces(self, unstr_grid: UnstructuredGrid):
+    def compute_cell_faces(self, unstr_grid: UnstructuredGrid) -> sps.csc_array:
         face_cells = unstr_grid.face_cells[: self.num_faces * 2]
         face_cells = np.reshape(face_cells, (self.num_faces, 2))
 
@@ -82,9 +82,9 @@ class Grid(EGrid):
         return sps.csc_array((orientation[J], (I, face_cells[I, J])))
 
 
-def vectors_to_np(input):
+def vectors_to_np(input) -> np.ndarray:
     return np.reshape(input, (3, -1), order="F", copy=False)
 
 
-def scalars_to_np(input):
+def scalars_to_np(input) -> np.ndarray:
     return np.array(input, copy=False)

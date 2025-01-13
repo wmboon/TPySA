@@ -8,7 +8,7 @@ I used `venv` to create a virtual environment in `/{prefix}/.venv/`. Make sure t
 
     pip install pybind11
 
-Make sure to install `numpy` and `scipy` similarly.
+We will need standard packages like `numpy` and `scipy`, which can be installed similarly.
 
 ## Install Dune
 Install instructions can be found here https://www.dune-project.org/installation/installation-buildsrc/.
@@ -82,7 +82,7 @@ If you've made changes in opm flow, then the compiled files need to be copied to
 
 and instead of compiling `all`, we can get away with recompiling only the necessary components. Usually, `simulators` in `opm-simulators/build/python/opm/simulators/` is sufficient.
 
-Remember to run `make install` on `opm-common`, `opm-grids`, and `opm-simulators`. Otherwise there may be seg-faults.
+In any case, **remember** to run `make install` on `opm-common`, `opm-grids`, and `opm-simulators` after making changes. Otherwise seg-faults may occur.
 
 ## Install opmcpg to handle corner point grids
 
@@ -100,6 +100,8 @@ and can be installed using
 You should add the needed keyword to the list of `valid_keywords` in the following file
 [opm-common/opm/input/eclipse/Schedule/Action/PyAction.cpp](https://github.com/OPM/opm-common/blob/53af14efb2e86bacaa89349a349066b2332e592e/opm/input/eclipse/Schedule/Action/PyAction.cpp#L40)
 
+This allows us to change the source vector from Python.
+
 ### The keyword ROCKBIOT
 
 We define the solid pressure as
@@ -112,6 +114,6 @@ $$
 $$
 In a fixed-stress splitting scheme, we lag the solid pressure by one iteration, thus moving the term with $p_s$ to the right-hand side. The remaining equation then has the same structure as the original mass conservation eqaution with a modified storativity term:
 $$
-\eta \rightarrow \eta + \alpha^2 \lambda ^{-1}
+\eta \rightarrow \eta + \alpha^2 \lambda^{-1}
 $$
-This "additional compressibility" is implemented by including a new keyword `ROCKBIOT` in opm-common and opm-simulators.
+This "additional compressibility" of $\alpha^2 \lambda^{-1}$ is implemented by including a new keyword `ROCKBIOT` in opm-common and opm-simulators.
