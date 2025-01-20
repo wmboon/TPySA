@@ -6,23 +6,30 @@ import tpysa
 
 class TPSA:
     def __init__(self, grid: tpysa.Grid):
+        """
+        Initializes an instance of the TPSA discretization on a given grid.
+        """
+
+        # Save the grid
         self.sd = grid
 
-        # save the dimension of the rotation space (d choose 2)
+        # Save the dimension of the rotation space (d choose 2)
         self.dim_r = grid.dim * (grid.dim - 1) // 2
 
         # Numbers of degrees of freedom for the displacement, rotation, and pressure
+        self.ndof_per_cell = self.sd.dim + self.dim_r + 1
         self.ndofs = grid.num_cells * np.array([grid.dim, self.dim_r, 1])
-
-    def discretize(self, data: dict) -> sps.sparray:
-        """
-        Assemble the TPSA matrix, given material constants in data
-        """
 
         # Save the unit normal vectors
         self.unit_normals = self.sd.face_normals / self.sd.face_areas
+
         # Save the cell_face connectivity
         self.find_cf = sps.find(self.sd.cell_faces)
+
+    def discretize(self, data: dict) -> sps.sparray:
+        """
+        Assemble the TPSA matrix, given material constants in the data dictionary.
+        """
 
         # Generate the matrices from (2.13) and (3.5)
         self.sigma = self.assemble_dual_var_map(data)
@@ -35,21 +42,17 @@ class TPSA:
 
     def assemble_dual_var_map(self, data: dict) -> sps.sparray:
         """
-        Assemble the matrix from (3.5) that maps primary to dual variables
+        Assemble the matrix from (3.7) that maps primary to dual variables
         """
         # Extract cell-face pairs
         cf = sps.csc_array(self.sd.cell_faces)
 
         self.delta_ki = self.assemble_delta_ki()
 
-        # Assemble the blocks of (3.5) where A_ij is the block coupling variable i and j.
+        # Assemble the blocks of (3.7) where A_ij is the block coupling variable i and j.
         mu_bar = self.harmonic_avg(data["mu"])
         A_uu = -2 * mu_bar[:, None] * cf
         A_uu = sps.block_diag([A_uu] * self.sd.dim)
-
-        l2_bar = self.harmonic_avg(data["l2"])
-        A_rr = -l2_bar[:, None] * cf
-        A_rr = sps.block_diag([A_rr] * self.dim_r)
 
         dk_mu = self.assemble_mu_dk(data["mu"], 2)
         A_pp = -dk_mu[:, None] * cf
@@ -57,8 +60,8 @@ class TPSA:
         Xi = self.assemble_xi(data["mu"])
         Xi_tilde = self.assemble_xi_tilde(Xi)
 
-        A_ru = self.assemble_S_Xi(Xi, True)
-        A_ur = self.assemble_S_Xi(Xi_tilde, False)
+        A_ru = self.assemble_R_Xi(Xi, True)
+        A_ur = self.assemble_R_Xi(Xi_tilde, False)
 
         A_pr = self.assemble_n_Xi(Xi, True)
         A_rp = self.assemble_n_Xi(Xi_tilde, False)
@@ -67,13 +70,13 @@ class TPSA:
         # fmt: off
         A = sps.block_array(
             [[A_uu, A_ur, A_rp], 
-             [A_ru, A_rr, None], 
+             [A_ru, None, None], 
              [A_pr, None, A_pp]]
         )
         # fmt: on
 
         # Scaling with the face areas
-        face_areas = np.tile(self.sd.face_areas, self.sd.dim + self.dim_r + 1)
+        face_areas = np.tile(self.sd.face_areas, self.ndof_per_cell)
 
         return face_areas[:, None] * A
 
@@ -116,10 +119,11 @@ class TPSA:
         if np.all(mu == 0):
             return np.zeros(self.unit_normals.shape[1])
 
-        faces, cells, _ = self.find_cf
-        mu_delta_ki = mu[cells] / self.delta_ki
+        else:
+            faces, cells, _ = self.find_cf
+            mu_delta_ki = mu[cells] / self.delta_ki
 
-        return 1 / (alpha * np.bincount(faces, weights=mu_delta_ki))
+            return 1 / (alpha * np.bincount(faces, weights=mu_delta_ki))
 
     def assemble_xi(self, mu: np.ndarray) -> sps.sparray:
         """
@@ -140,7 +144,7 @@ class TPSA:
 
         return Xi_tilde
 
-    def assemble_S_Xi(self, Xi: sps.sparray, u_to_r: bool = True) -> sps.sparray:
+    def assemble_R_Xi(self, Xi: sps.sparray, u_to_r: bool = True) -> sps.sparray:
         """
         Compute the adjoint of the asymmetry operator, acting on Xi
         """
@@ -177,8 +181,7 @@ class TPSA:
         """
         The divergence operator on the product space
         """
-        dim = self.sd.dim + self.dim_r + 1
-        return sps.block_diag([self.sd.cell_faces.T] * dim)
+        return sps.block_diag([self.sd.cell_faces.T] * self.ndof_per_cell)
 
     def mass(self, data: dict) -> sps.sparray:
         """
@@ -189,7 +192,7 @@ class TPSA:
         M_p = sps.diags_array(1 / data["lambda"])
 
         M = sps.block_diag([M_u, M_r, M_p])
-        cell_volumes = np.tile(self.sd.cell_volumes, self.sd.dim + self.dim_r + 1)
+        cell_volumes = np.tile(self.sd.cell_volumes, self.ndof_per_cell)
 
         return cell_volumes[:, None] * M
 
