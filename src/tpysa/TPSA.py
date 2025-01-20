@@ -193,7 +193,7 @@ class TPSA:
 
         return cell_volumes[:, None] * M
 
-    def assemble_isotropic_stress_source(self, data: dict, w: np.ndarray):
+    def assemble_isotropic_stress_source(self, data: dict, w: np.ndarray) -> np.ndarray:
         """
         Assemble the right-hand side for a given isotropic stress field w, like a fluid pressure
         """
@@ -203,7 +203,7 @@ class TPSA:
 
         return np.hstack((rhs_u, rhs_r, rhs_p))
 
-    def assemble_gravity_force(self, data: dict):
+    def assemble_gravity_force(self, data: dict) -> np.ndarray:
         w = np.zeros(self.ndofs[0])
         indices_uz = np.arange(
             (self.sd.dim - 1) * self.sd.num_cells, self.sd.dim * self.sd.num_cells
@@ -212,12 +212,15 @@ class TPSA:
 
         return self.assemble_body_force(w)
 
-    def assemble_body_force(self, f: np.ndarray):
+    def assemble_body_force(self, f: np.ndarray) -> np.ndarray:
         """
         Assemble the right-hand side for a given body force f(x,y,z)
-        We assume that
-        f[0]   = f_x(x_0)
-        f[n_c] = f_y(x_0)
+        We assume that these are numbered as
+            f[0]   = f_x(x_0)
+            f[1]   = f_x(x_1)
+            ...
+            f[n_c] = f_y(x_0)
+            ...
         """
         rhs_u = np.tile(self.sd.cell_volumes, self.sd.dim) * f
         rhs_r = np.zeros(self.ndofs[1])
@@ -225,7 +228,7 @@ class TPSA:
 
         return np.hstack((rhs_u, rhs_r, rhs_p))
 
-    def solve(self, data, pressure_source):
+    def solve(self, data, pressure_source) -> tuple:
         rhs = self.assemble_isotropic_stress_source(data, pressure_source)
         rhs += self.assemble_gravity_force(data)
 

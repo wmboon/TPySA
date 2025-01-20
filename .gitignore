@@ -11,3 +11,8 @@
 *.UNRST
 *.UNSMRY
 *.eps
+darts_example.py
+src/tpysa.egg-info/*
+*.EGRID
+*.INIT
+*.npz
