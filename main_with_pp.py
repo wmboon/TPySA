@@ -4,7 +4,7 @@ import numpy as np
 import porepy as pp
 import pygeon as pg
 
-from src.TPSA import TPSA
+from tpysa import TPSA
 
 # Grid the unit cube
 sd = pg.unit_grid(3, 0.1, as_mdg=False)
