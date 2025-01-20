@@ -305,7 +305,7 @@ FGOR
 -- 2a) Pressures of the cell where the injector and producer are located
 BPR
 1  1  1 /
-10 10 3 /
+-- 10 10 3 /
 /
 
 -- 2b) Gas saturation at given grid points
@@ -314,8 +314,6 @@ BGSAT
 /
 
 FOPR
-
-FUOPR
 
 
 SCHEDULE

@@ -85,6 +85,9 @@ PORO
 -- Constant porosity of 0.3 throughout all 300 grid cells
    	1000*0.3 /
 
+ROCKBIOT
+	1000*2.0 /
+
 PERMX
 -- The layers have perm. 500mD, 50mD and 200mD, respectively.
 	100*500 100*50 800*200 /

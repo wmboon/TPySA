@@ -10,6 +10,10 @@ I used `venv` to create a virtual environment in `/{prefix}/.venv/`. Make sure t
 
 We will need standard packages like `numpy` and `scipy`, which can be installed similarly.
 
+The `TPySA` package is installed by navigating to the home folder of this repo and executing
+
+    pip install -e .
+
 ## Install Dune
 Install instructions can be found here https://www.dune-project.org/installation/installation-buildsrc/.
 
@@ -95,14 +99,20 @@ and can be installed using
 
 ## The TPSA forks of opm-common and opm-simulators
 
-### PYACTION does not recognize keyword "SOURCE"
+In order to use this repo, checkout the following forks:
+- https://github.com/wmboon/opm-common/tree/tpsa
+- https://github.com/wmboon/opm-simulators/tree/tpsa
 
-You should add the needed keyword to the list of `valid_keywords` in the following file
+The changes we made with respect to `upstream` are summarized next.
+
+#### PYACTION does not recognize keyword "SOURCE"
+
+In opm-common, we added the keyword SOURCE to the list of `valid_keywords` in the following file
 [opm-common/opm/input/eclipse/Schedule/Action/PyAction.cpp](https://github.com/OPM/opm-common/blob/53af14efb2e86bacaa89349a349066b2332e592e/opm/input/eclipse/Schedule/Action/PyAction.cpp#L40)
 
-This allows us to change the source vector from Python.
+This allows us to change the source vector from the Python side of things.
 
-### The keyword ROCKBIOT
+#### The keyword ROCKBIOT
 
 We define the solid pressure as
 $$

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os.path
+# Augmented from the PyGeoN setup.py
 from glob import glob
 from os.path import basename, splitext
 
@@ -19,8 +19,6 @@ setup(
     package_data={"tpysa": ["py.typed"]},
     packages=find_packages("src"),
     package_dir={"": "src"},
-    py_modules=[
-        os.path.splitext(os.path.basename(path))[0] for path in glob("src/*.py")
-    ],
+    py_modules=[splitext(basename(path))[0] for path in glob("src/*.py")],
     zip_safe=False,
 )
