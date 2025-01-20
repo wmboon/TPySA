@@ -21,7 +21,7 @@ class Grid(EGrid):
         - face_areas
         - cell_faces
 
-    Attributes further desired by PorePy:
+    Attributes further desired by PorePy and therefore implemented here:
         - num_cells/num_faces/num_nodes
         - nodes
         - face_nodes

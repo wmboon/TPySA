@@ -49,7 +49,8 @@ class TPSA:
 
         self.delta_ki = self.assemble_delta_ki()
 
-        # Assemble the blocks of (3.7) where A_ij is the block coupling variable i and j.
+        # Assemble the blocks of (3.7) where
+        # A_ij is the block coupling variable i and j.
         mu_bar = self.harmonic_avg(data["mu"])
         A_uu = -2 * mu_bar[:, None] * cf
         A_uu = sps.block_diag([A_uu] * self.sd.dim)

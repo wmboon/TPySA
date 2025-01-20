@@ -70,11 +70,15 @@ $$
     \end{bmatrix}
     +
     \begin{bmatrix}
-       0 \\\ 0 \\\ \alpha \lambda^{-1} p_f \\\ - \alpha \lambda^{-1} \partial_t p_s
-    \end{bmatrix}^n
+       0 \\\ 0 \\\ \alpha \lambda^{-1} p_f^n \\\ - \alpha \lambda^{-1} \partial_t p_s^{n + 1}
+    \end{bmatrix}
 \end{align}
 $$
 
 Note that the first three equations are exactly TPSA for elasticity. The final equation can be solved using OPM Flow. 
 For that, we needed to make two adjustments. First, the right-hand side needs to be adjusted using the keyword `SOURCE`. 
 Second, the "additional compressibility" of $\alpha^2 \lambda^{-1}$ is implemented by including a new keyword `ROCKBIOT`.
+
+Unfortunately, we cannot directly start iterating at a time step because I haven't figured out a way to revert OPM Flow to a previous time step, using Python commands. Nevertheless, there are two straightforward iteration schemes that we can now consider:
+- Lagged: At time step $t_i$, we set $p_f^n = p_f(t_i)$, instead of the unkown $p_f(t_{i + 1})$. This effectively lags the solid pressure by one iteration.
+- Time-loop: Solve for an entire simulation and save the source terms $- \alpha \lambda^{-1} \partial_t p_s^{n + 1}$ at each time step. Since we cannot reinstantiate a Flow Simulator (something to do with MPI), this involves writing to file and re-running the Python script.
