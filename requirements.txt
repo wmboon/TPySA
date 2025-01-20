@@ -1,0 +1,4 @@
+numpy
+scipy
+pybind11
+opmcpg

@@ -4,15 +4,11 @@ Below are some steps to keep in mind when installing OPM Flow from source, with 
 
 ## Use a Python virtual environment
 
-I used `venv` to create a virtual environment in `/{prefix}/.venv/`. Make sure to install `pybind11` using
-
-    pip install pybind11
-
-We will need standard packages like `numpy` and `scipy`, which can be installed similarly.
-
-The `TPySA` package is installed by navigating to the home folder of this repo and executing
+I used `venv` to create a virtual environment in `/{prefix}/.venv/`. The `TPySA` package is installed by navigating to the home folder of this repository and executing
 
     pip install -e .
+
+This will automatically install some of the dependencies, including `opmcpg` (https://pypi.org/project/opmcpg/).
 
 ## Install Dune
 Install instructions can be found here https://www.dune-project.org/installation/installation-buildsrc/.
@@ -88,15 +84,6 @@ and instead of compiling `all`, we can get away with recompiling only the necess
 
 In any case, **remember** to run `make install` on `opm-common`, `opm-grids`, and `opm-simulators` after making changes. Otherwise seg-faults may occur.
 
-## Install opmcpg to handle corner point grids
-
-The package `opmcpg` 
-(https://pypi.org/project/opmcpg/)
-is essential 
-and can be installed using 
-
-    pip install opmcpq
-
 ## The TPSA forks of opm-common and opm-simulators
 
 In order to use this repo, checkout the following forks:
@@ -115,15 +102,21 @@ This allows us to change the source vector from the Python side of things.
 #### The keyword ROCKBIOT
 
 We define the solid pressure as
+
 $$
 p_s = \lambda(\nabla \cdot u) - \alpha p_f
 $$
+
 which rewrites the mass conservation law
+
 $$
 \nabla \cdot q + \partial_t (\alpha \lambda^{-1} p_s + (\eta + \alpha^2 \lambda ^{-1})p_f) = f
 $$
+
 In a fixed-stress splitting scheme, we lag the solid pressure by one iteration, thus moving the term with $p_s$ to the right-hand side. The remaining equation then has the same structure as the original mass conservation eqaution with a modified storativity term:
+
 $$
 \eta \rightarrow \eta + \alpha^2 \lambda^{-1}
 $$
+
 This "additional compressibility" of $\alpha^2 \lambda^{-1}$ is implemented by including a new keyword `ROCKBIOT` in opm-common and opm-simulators.

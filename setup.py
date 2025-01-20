@@ -6,12 +6,16 @@ from os.path import basename, splitext
 
 from setuptools import find_packages, setup
 
+with open("requirements.txt") as f:
+    required = f.read().splitlines()
+
 setup(
     name="tpysa",
-    version="0.0.0",
+    version="0.1",
     license="GPL",
     keywords=["TPSA"],
     author="Wietse M. Boon",
+    install_requires=required,
     description="A Python implementation of TPSA",
     maintainer="Wietse M. Boon",
     maintainer_email="wibo@norceresearch.no",
