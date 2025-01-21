@@ -16,14 +16,17 @@ if __name__ == "__main__":
     ## Parse deck
 
     # case_str = "tests/data/four_blocks_fullshift/FOURBLOCKS"
-    case_str = "tests/data/single_phase/SINGLE_PHASE"
+    # case_str = "tests/data/single_phase/SINGLE_PHASE"
     # case_str = "tests/data/spe1/SPE1CASE1"
+    # case_str = "tests/data/cart_grid/CARTGRID"
+    case_str = "src/tpysa/grid_templates/CARTGRID_5"
 
     dir_name = os.path.dirname(__file__)
     opmcase = os.path.join(dir_name, case_str)
 
     data_file = f"{opmcase}.DATA"
-    deck = Parser().parse(data_file)
+    parser = Parser()
+    deck = parser.parse(data_file)
 
     ## Initialize flow simulator
 
@@ -45,7 +48,6 @@ if __name__ == "__main__":
     data = {
         "mu": np.full(grid.num_cells, 5e1),
         "lambda": np.full(grid.num_cells, 5e1),
-        "l2": np.full(grid.num_cells, 1),
         "alpha": np.full(grid.num_cells, 1),
         "gravity": np.full(grid.num_cells, 0),
     }
@@ -53,7 +55,9 @@ if __name__ == "__main__":
 
     # double check that ROCKBIOT is inserted appropriately
     rock_biot = data["alpha"] * data["alpha"] / data["lambda"]
-    rock_biot_ecl = state.field_props()["ROCKBIOT"]
+
+    field_props = state.field_props()
+    rock_biot_ecl = field_props["ROCKBIOT"]
 
     if not np.allclose(rock_biot, rock_biot_ecl):
         import warnings
@@ -94,7 +98,7 @@ if __name__ == "__main__":
         delta_sp = (solid_p - solid_p0) / dt
 
         # Compute the mass source
-        source = delta_sp + data["alpha"] * delta_fp
+        source = delta_sp  # + data["alpha"] * delta_fp
         source *= -data["alpha"] / data["lambda"]
         source += injection_rate
 
@@ -114,11 +118,9 @@ if __name__ == "__main__":
     sim.step_cleanup()
 
     ecl_summary = ESmry(f"{opmcase}.SMSPEC")
-    time = ecl_summary["TIME"]
-    BPR = ecl_summary["BPR:5,5,5"]
 
     ## Save the solution as numpy arrays
     array_str = opmcase + "_" + coupler.str
-    np.savez(array_str, p=BPR, u=displ, p_s=solid_p, r_s=rotat, t=time)
+    # np.savez(array_str, p=BPR, u=displ, p_s=solid_p, r_s=rotat, t=time)
 
     pass
