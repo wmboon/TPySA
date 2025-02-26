@@ -21,7 +21,7 @@ if __name__ == "__main__":
     # case_str = "tests/data/cart_grid/CARTGRID"
     case_str = "src/tpysa/grid_templates/CARTGRID_5"
 
-    dir_name = os.path.dirname(__file__)
+    dir_name = os.path.dirname(os.path.dirname(__file__))
     opmcase = os.path.join(dir_name, case_str)
 
     data_file = f"{opmcase}.DATA"
@@ -84,6 +84,7 @@ if __name__ == "__main__":
         dt = sim.get_dt()
         current_step = sim.current_step()
 
+        assert np.allclose(sim.get_fluidstate_variable("Sw"), 1)
         if current_step == 8 or current_step == 16:
             injection_rate = 1e7 / dt
         else:
