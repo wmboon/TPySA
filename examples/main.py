@@ -13,18 +13,29 @@ import tpysa
 
 if __name__ == "__main__":
 
+    data = {
+        "mu": 1e9,  # 1 GPa
+        "lambda": 1e9,  # 1 GPa
+        "alpha": 1,
+        "gravity": 0,
+    }
+
+    inj_rate = 100  # kg/day
+
+    rock_biot = data["alpha"] * data["alpha"] / data["lambda"]
+
+    # Create a n x n x n Cartesian grid
+    case_str = "cartgrid/GRID_8"
+    dir_name = os.path.dirname(__file__)
+    opmcase = os.path.join(dir_name, case_str)
+    data_file = f"{opmcase}.DATA"
+
+    tpysa.generate_cart_grid(
+        8, output_file=data_file, rockbiot=rock_biot, time_steps=30
+    )
+
     ## Parse deck
 
-    # case_str = "tests/data/four_blocks_fullshift/FOURBLOCKS"
-    # case_str = "tests/data/single_phase/SINGLE_PHASE"
-    # case_str = "tests/data/spe1/SPE1CASE1"
-    # case_str = "tests/data/cart_grid/CARTGRID"
-    case_str = "src/tpysa/grid_templates/CARTGRID_5"
-
-    dir_name = os.path.dirname(os.path.dirname(__file__))
-    opmcase = os.path.join(dir_name, case_str)
-
-    data_file = f"{opmcase}.DATA"
     parser = Parser()
     deck = parser.parse(data_file)
 
@@ -45,12 +56,10 @@ if __name__ == "__main__":
     ## Initialize Mechanics
 
     tpsa_disc = tpysa.TPSA(grid)
-    data = {
-        "mu": np.full(grid.num_cells, 5e1),
-        "lambda": np.full(grid.num_cells, 5e1),
-        "alpha": np.full(grid.num_cells, 1),
-        "gravity": np.full(grid.num_cells, 0),
-    }
+
+    for key, item in data.items():
+        data[key] = np.full(grid.num_cells, item)
+
     tpsa_disc.discretize(data)
 
     # double check that ROCKBIOT is inserted appropriately
@@ -59,10 +68,7 @@ if __name__ == "__main__":
     field_props = state.field_props()
     rock_biot_ecl = field_props["ROCKBIOT"]
 
-    if not np.allclose(rock_biot, rock_biot_ecl):
-        import warnings
-
-        warnings.warn("Mismatch between the rock_biot coefficient input.")
+    assert np.allclose(rock_biot, rock_biot_ecl)
 
     ## Choose coupling scheme
 
@@ -72,44 +78,43 @@ if __name__ == "__main__":
     # coupler = tpysa.Iterative(n_space, n_time, opmcase)
     coupler = tpysa.Lagged(n_space)
 
-    ## Simulate
-
+    ## Initial conditions
     fluid_p0 = sim.get_primary_variable("pressure")
-    solid_p0 = np.zeros_like(fluid_p0)
+    _, _, solid_p0 = tpsa_disc.solve(data, fluid_p0)
+    dt = 1  # Doesn't matter because it will get overwritten
 
-    coupler.set_mass_source(grid, schedule, 0)
-    sim.step()  # do the first time step so that we get access to get_dt()
+    reportsteps = schedule.reportsteps
 
     while not sim.check_simulation_finished():
-        dt = sim.get_dt()
         current_step = sim.current_step()
 
         assert np.allclose(sim.get_fluidstate_variable("Sw"), 1)
-        if current_step == 8 or current_step == 16:
-            injection_rate = 1e7 / dt
-        else:
-            injection_rate = 0
 
-        # Compute new fluid and solid pressures
+        inj_source = np.zeros(grid.num_cells)
+        if current_step >= 5 and current_step <= 15:
+            inj_source[0] = inj_rate
+            inj_source[-1] = -inj_rate
+
+        # Compute current fluid and solid pressures
         fluid_p = sim.get_primary_variable("pressure")
         displ, rotat, solid_p = tpsa_disc.solve(data, fluid_p)
 
-        # Compute the changes in pressures
+        # Compute the changes in solid and fluid pressures
+        # in the previous time step
         delta_fp = (fluid_p - fluid_p0) / dt
         delta_sp = (solid_p - solid_p0) / dt
 
         # Compute the mass source
-        source = delta_sp  # + data["alpha"] * delta_fp
-        source *= -data["alpha"] / data["lambda"]
-        source += injection_rate
+        vol_source = -data["alpha"] / data["lambda"] * delta_sp
 
         # Set the mass source
-        coupler.save_source(current_step, source)
-        coupler.set_mass_source(grid, schedule, current_step)
+        coupler.save_source(current_step, vol_source)
+        coupler.set_mass_source(grid, schedule, current_step, inj_source)
 
         # Save the pressures for the next time step
         fluid_p0 = fluid_p.copy()
         solid_p0 = solid_p.copy()
+        dt = (reportsteps[current_step + 1] - reportsteps[current_step]).total_seconds()
 
         # Advance
         sim.step()
@@ -119,9 +124,11 @@ if __name__ == "__main__":
     sim.step_cleanup()
 
     ecl_summary = ESmry(f"{opmcase}.SMSPEC")
+    BPR = ecl_summary["BPR:1,1,1"]
+    time = ecl_summary["TIME"]
 
     ## Save the solution as numpy arrays
-    array_str = opmcase + "_" + coupler.str
-    # np.savez(array_str, p=BPR, u=displ, p_s=solid_p, r_s=rotat, t=time)
+    array_str = "_".join((opmcase, str(data["alpha"][0]), coupler.str))
+    np.savez(array_str, pressure=BPR, time=time)
 
     pass

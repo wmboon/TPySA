@@ -5,12 +5,25 @@ from opm.io.schedule import Schedule
 
 
 class Coupler:
-    def set_mass_source(self, grid: EGrid, schedule: Schedule, current_step: int):
+    def set_mass_source(
+        self, grid: EGrid, schedule: Schedule, current_step: int, inj_source: np.ndarray
+    ):
         source = self.get_source(current_step)
 
         # Make into array if it is a scalar
         if isinstance(source, np.ScalarType):
             source = np.full(grid.num_cells, source)
+
+        # Convert units from m3/s to kg/day
+        source *= 24 * 60 * 60  # from 1/second to 1/day
+        source *= 997  # from m^3 to kg
+
+        with open("out.txt", "w") as f:
+            print(np.linalg.norm(inj_source) / np.linalg.norm(source), file=f)
+            print("\n")
+
+        # Add injection/production terms
+        source += inj_source
 
         # Convert to string
         source_str = self.source_to_str(grid, source)

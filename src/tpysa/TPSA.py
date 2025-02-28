@@ -241,3 +241,8 @@ class TPSA:
         u, r, p, _ = np.split(sol, np.cumsum(self.ndofs))
 
         return u, r, p
+
+    def recover_volumetric_change(
+        self, solid_p: np.ndarray, fluid_p: np.ndarray, data: dict
+    ) -> np.ndarray:
+        return (solid_p + data["alpha"] * fluid_p) / data["lambda"]

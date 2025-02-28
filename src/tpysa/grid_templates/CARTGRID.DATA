@@ -51,18 +51,18 @@ DZ
 
 TOPS
 -- The depth of the top of each grid block
-	${nx * ny}*100.0 /
+	${nx * ny}*1000.0 /
 
 PORO
 -- Constant porosity throughout all grid cells
-   ${nx * ny * nz}*0.5 /
+   ${nx * ny * nz}*0.3 /
 
 PERMX
--- The layers have perm. 1
-	${nx * ny * nz}*1.0 /
+-- The layers have perm. 500 mD
+	${nx * ny * nz}*500.0 /
 
 ROCKBIOT
-	${nx * ny * nz}*2 /
+	${nx * ny * nz}*${rockbiot} /
 
 
 PROPS
@@ -183,7 +183,7 @@ EQUIL
 
 -- Item #: 
 -- Item #: 1 2    3    4 5    6 7 8 9
-	     100 2   20    0 10   0 1 0 0 /
+	    1000 100   20    0 10   0 1 0 0 /
 
 RPTRST
 	'BASIC=1' /
@@ -198,14 +198,9 @@ FGOR
 -- 2a) Pressures of the cell where the injector and producer are located
 BPR
 1  1  1 /
+${nx} ${ny} ${nz} /
 /
 
--- 2b) Gas saturation at given grid points
-BGSAT
-1  1  1 /
-/
-
-FOPR
 
 FUOPR
 
@@ -213,15 +208,13 @@ FUOPR
 SCHEDULE
 -- -------------------------------------------------------------------------
 RPTSCHED
-	'PRES' /
+	'NOTHING' /
 
 RPTRST
 	'BASIC=1' /
 
-
-
 TSTEP
-	20*10
+	${n_time}*10
 /
 
 

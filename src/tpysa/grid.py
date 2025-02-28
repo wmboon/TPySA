@@ -77,9 +77,11 @@ class Grid(EGrid):
         face_cells = np.reshape(face_cells, (self.num_faces, 2))
 
         orientation = np.array([1, -1])
-        I, J = np.nonzero(face_cells >= 0)
+        face_row, cell_col = np.nonzero(face_cells >= 0)
 
-        return sps.csc_array((orientation[J], (I, face_cells[I, J])))
+        return sps.csc_array(
+            (orientation[cell_col], (face_row, face_cells[face_row, cell_col]))
+        )
 
 
 def vectors_to_np(input) -> np.ndarray:
