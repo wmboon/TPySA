@@ -2,7 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
-case_str = "cartgrid/GRID_8"
+nx = 10
+case_str = "cartgrid/GRID_" + str(nx)
 dir_name = os.path.dirname(__file__)
 opmcase = os.path.join(dir_name, case_str)
 
@@ -25,5 +26,5 @@ plt.ylabel("Pressure (Bar)")
 plt.legend()
 plt.savefig(opmcase + "well_pressures.svg")
 
-plt.show()
+# plt.show()
 pass

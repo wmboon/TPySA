@@ -18,9 +18,7 @@ class Coupler:
         source *= 24 * 60 * 60  # from 1/second to 1/day
         source *= 997  # from m^3 to kg
 
-        with open("out.txt", "w") as f:
-            print(np.linalg.norm(inj_source) / np.linalg.norm(source), file=f)
-            print("\n")
+        # print(np.linalg.norm(inj_source) / np.linalg.norm(source))
 
         # Add injection/production terms
         source += inj_source

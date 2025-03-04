@@ -14,24 +14,26 @@ import tpysa
 if __name__ == "__main__":
 
     data = {
-        "mu": 1e9,  # 1 GPa
-        "lambda": 1e9,  # 1 GPa
+        "mu": 1e10,  # 10 GPa
+        "lambda": 1e10,  # 10 GPa
         "alpha": 1,
         "gravity": 0,
     }
+    lagged = False
+    nx = 10
 
-    inj_rate = 100  # kg/day
+    inj_rate = 50  # kg/day
 
     rock_biot = data["alpha"] * data["alpha"] / data["lambda"]
 
     # Create a n x n x n Cartesian grid
-    case_str = "cartgrid/GRID_8"
+    case_str = "cartgrid/GRID_" + str(nx)
     dir_name = os.path.dirname(__file__)
     opmcase = os.path.join(dir_name, case_str)
     data_file = f"{opmcase}.DATA"
 
     tpysa.generate_cart_grid(
-        8, output_file=data_file, rockbiot=rock_biot, time_steps=30
+        nx, output_file=data_file, rockbiot=rock_biot, time_steps=40
     )
 
     ## Parse deck
@@ -75,8 +77,10 @@ if __name__ == "__main__":
     n_time = len(schedule.reportsteps)
     n_space = grid.num_cells
 
-    # coupler = tpysa.Iterative(n_space, n_time, opmcase)
-    coupler = tpysa.Lagged(n_space)
+    if lagged:
+        coupler = tpysa.Lagged(n_space)
+    else:
+        coupler = tpysa.Iterative(n_space, n_time, opmcase)
 
     ## Initial conditions
     fluid_p0 = sim.get_primary_variable("pressure")
@@ -85,15 +89,25 @@ if __name__ == "__main__":
 
     reportsteps = schedule.reportsteps
 
+    cc_local = grid.cell_centers - np.array([[0, 0, 1000]]).T
+    inj_sites = np.max(cc_local, axis=0) <= 1 / 8 * 100
+    pro_sites = np.min(cc_local, axis=0) >= 7 / 8 * 100
+
+    inj_volume = np.sum(grid.cell_volumes[inj_sites])
+    pro_volume = np.sum(grid.cell_volumes[pro_sites])
+
     while not sim.check_simulation_finished():
         current_step = sim.current_step()
+        current_time = (reportsteps[current_step] - reportsteps[0]).days
 
         assert np.allclose(sim.get_fluidstate_variable("Sw"), 1)
 
         inj_source = np.zeros(grid.num_cells)
-        if current_step >= 5 and current_step <= 15:
-            inj_source[0] = inj_rate
-            inj_source[-1] = -inj_rate
+        if current_time >= 50 and current_time <= 250:
+            inj_source[inj_sites] = inj_rate * grid.cell_volumes[inj_sites] / inj_volume
+            inj_source[pro_sites] = (
+                -inj_rate * grid.cell_volumes[pro_sites] / pro_volume
+            )
 
         # Compute current fluid and solid pressures
         fluid_p = sim.get_primary_variable("pressure")
