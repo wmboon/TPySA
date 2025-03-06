@@ -8,6 +8,7 @@ from opmcpg._cpggrid import (
     UnstructuredGrid,
 )
 from opm.io.ecl import EclFile, EGrid
+import vtk
 
 
 class Grid(EGrid):
@@ -82,6 +83,29 @@ class Grid(EGrid):
         return sps.csc_array(
             (orientation[cell_col], (face_row, face_cells[face_row, cell_col]))
         )
+
+    def compute_cell_nodes(self) -> sps.csc_array:
+        return self.face_nodes.astype(bool) @ self.cell_faces.astype(bool)
+
+    def get_vtk(self) -> vtk.vtkUnstructuredGrid:
+        if not hasattr(self, "vtk_grid"):
+            cell_nodes = self.compute_cell_nodes()
+
+            points = vtk.vtkPoints()
+            for i, x in enumerate(self.nodes.T):
+                points.InsertPoint(i, x)
+
+            self.vtk_grid = vtk.vtkUnstructuredGrid()
+            self.vtk_grid.Allocate(self.num_cells)
+
+            for cell in np.arange(self.num_cells):
+                node_inds = slice(cell_nodes.indptr[cell], cell_nodes.indptr[cell + 1])
+                nodes = cell_nodes.indices[node_inds]
+                self.vtk_grid.InsertNextCell(vtk.VTK_HEXAHEDRON, 8, nodes)
+
+            self.vtk_grid.SetPoints(points)
+
+        return self.vtk_grid
 
 
 def vectors_to_np(input) -> np.ndarray:

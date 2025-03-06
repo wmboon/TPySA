@@ -20,13 +20,13 @@ if __name__ == "__main__":
         "gravity": 0,
     }
     lagged = False
-    nx = 10
+    nx = 5
 
     inj_rate = 50  # kg/day
 
     rock_biot = data["alpha"] * data["alpha"] / data["lambda"]
 
-    # Create a n x n x n Cartesian grid
+    ## Create a n x n x n Cartesian grid
     case_str = "cartgrid/GRID_" + str(nx)
     dir_name = os.path.dirname(__file__)
     opmcase = os.path.join(dir_name, case_str)
@@ -129,6 +129,15 @@ if __name__ == "__main__":
         fluid_p0 = fluid_p.copy()
         solid_p0 = solid_p.copy()
         dt = (reportsteps[current_step + 1] - reportsteps[current_step]).total_seconds()
+
+        if current_step == 10:
+            vol_change = tpsa_disc.recover_volumetric_change(solid_p, fluid_p, data)
+            tpysa.write_vtk(
+                grid,
+                [fluid_p, solid_p, displ, rotat, vol_change],
+                ["fluid_p", "solid_p", "displacement", "rotation", "vol_change"],
+                "solutions.vtu",
+            )
 
         # Advance
         sim.step()
