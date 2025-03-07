@@ -26,6 +26,7 @@ class Grid(EGrid):
         - num_cells/num_faces/num_nodes
         - nodes
         - face_nodes
+        - tags["domain_boundary_faces"]
     """
 
     def __init__(self, egrid_file: str, result_fname="results.grdecl", minpv=0):
@@ -66,6 +67,9 @@ class Grid(EGrid):
         self.cell_faces = self.compute_cell_faces(unstr_grid)
         self.face_nodes = self.compute_face_nodes(unstr_grid)
 
+        self.tags = {}
+        self.tag_boundaries()
+
     def compute_face_nodes(self, unstr_grid: UnstructuredGrid) -> sps.csc_array:
         indptr = scalars_to_np(unstr_grid.face_nodepos)[: self.num_faces + 1]
         indices = scalars_to_np(unstr_grid.face_nodes)[: indptr[-1]]
@@ -85,7 +89,14 @@ class Grid(EGrid):
         )
 
     def compute_cell_nodes(self) -> sps.csc_array:
-        return self.face_nodes.astype(bool) @ self.cell_faces.astype(bool)
+        return self.face_nodes @ self.cell_faces.astype(bool)
+
+    def tag_boundaries(self) -> None:
+        num_cells_per_face = self.cell_faces.sum(axis=1)
+        self.tags["domain_boundary_faces"] = num_cells_per_face != 0
+        self.tags["domain_boundary_nodes"] = (
+            self.face_nodes @ self.tags["domain_boundary_faces"]
+        )
 
     def get_vtk(self) -> vtk.vtkUnstructuredGrid:
         if not hasattr(self, "vtk_grid"):

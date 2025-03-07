@@ -17,10 +17,10 @@ if __name__ == "__main__":
         "mu": 1e10,  # 10 GPa
         "lambda": 1e10,  # 10 GPa
         "alpha": 1,
-        "gravity": 0,
+        "gravity": -9.81 * 997,  # N / m3
     }
     lagged = False
-    nx = 5
+    nx = 8
 
     inj_rate = 50  # kg/day
 
