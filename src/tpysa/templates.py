@@ -6,12 +6,12 @@ import mako.template
 def generate_cart_grid(
     num_cells: int,
     domain_length: float = 100,
-    template_name: str = "CARTGRID",
     output_file: str = None,
     rockbiot: np.ndarray = None,
     inj_rate: float = 0.0,
     time_steps: int = 20,
 ):
+    template_name = "CARTGRID"
 
     if isinstance(num_cells, np.ScalarType):
         nx = ny = nz = num_cells
@@ -20,13 +20,7 @@ def generate_cart_grid(
     else:
         raise ValueError
 
-    # Make rockbiot into a string
-    if rockbiot is None:
-        rockbiot_str = "{}*{}".format(nx * ny * nz, 0.0)
-    else:
-        rockbiot = rockbiot * 1e5  # Conversion from 1/Pa to 1/bar
-        rockbiot_str = "{}*{}".format(nx * ny * nz, rockbiot[0])
-        # rockbiot_str = str(rockbiot)[1:-1]
+    rockbiot_str = stringify_rockbiot(rockbiot, nx * ny * nz)
 
     data = {
         "nx": nx,
@@ -40,6 +34,40 @@ def generate_cart_grid(
         "inj_rate": inj_rate,  # m3/day
     }
 
+    generate_grid_from_template(template_name, output_file, data)
+
+
+def generate_faulted_grid(
+    rockbiot: np.ndarray = None,
+    output_file: str = None,
+    time_steps: int = 20,
+    inj_rate: float = 0.0,
+):
+    template_name = "FAULTGRID"
+
+    rockbiot_str = stringify_rockbiot(rockbiot, 2700)
+
+    data = {
+        "n_time": time_steps,
+        "rockbiot": rockbiot_str,
+        "inj_rate": inj_rate,  # m3/day
+    }
+
+    generate_grid_from_template(template_name, output_file, data)
+
+
+def stringify_rockbiot(rockbiot: np.ndarray, num_cells: int):
+    # Make rockbiot into a string
+    if isinstance(rockbiot, np.ndarray):
+        rockbiot = rockbiot * 1e5  # Conversion from 1/Pa to 1/bar
+        rockbiot_str = " ".join([str(rock) for rock in rockbiot])
+    else:
+        rockbiot_str = "{}*{}".format(num_cells, 0.0)
+
+    return rockbiot_str
+
+
+def generate_grid_from_template(template_name: str, output_file: str, data: dict):
     dir_name = os.path.dirname(__file__)
     dir_name = os.path.join(dir_name, "grid_templates/")
     template_file = os.path.join(dir_name, "{:}.DATA".format(template_name))
@@ -47,11 +75,10 @@ def generate_cart_grid(
     template = mako.template.Template(filename=template_file)
 
     if output_file is None:
-        output_file = os.path.join(dir_name, "{:}_{:}.DATA".format(template_name, nx))
+        output_file = os.path.join(dir_name, "{:}_gen.DATA".format(template_name))
 
-    f = open(output_file, "w")
-    f.write(template.render(**data))
-    f.close()
+    with open(output_file, "w") as f:
+        f.write(template.render(**data))
 
 
 if __name__ == "__main__":
