@@ -5,9 +5,7 @@ from opm.io.schedule import Schedule
 
 
 class Coupler:
-    def set_mass_source(
-        self, grid: EGrid, schedule: Schedule, current_step: int, inj_source: np.ndarray
-    ):
+    def set_mass_source(self, grid: EGrid, schedule: Schedule, current_step: int):
         source = self.get_source(current_step)
 
         # Make into array if it is a scalar
@@ -17,11 +15,6 @@ class Coupler:
         # Convert units from m3/s to kg/day
         source *= 24 * 60 * 60  # from 1/second to 1/day
         source *= 997  # from m^3 to kg
-
-        # print(np.linalg.norm(inj_source) / np.linalg.norm(source))
-
-        # Add injection/production terms
-        source += inj_source
 
         # Convert to string
         source_str = self.source_to_str(grid, source)

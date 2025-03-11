@@ -5,7 +5,7 @@ TITLE
    Single-phase flow on a cartesian grid
 
 DIMENS
-   ${nx} ${ny} ${nz} /
+   2 2 2 /
 
 -- The number of equilibration regions is inferred from the EQLDIMS
 -- keyword.
@@ -26,8 +26,6 @@ METRIC
 START
    1 'JAN' 2025 /
 
-WELLDIMS
-	2 ${2 * nz} 1 2 /
 
 UNIFOUT
 
@@ -42,34 +40,37 @@ GRID
 INIT
 
 DX 
--- There are in total ${nx * ny * nz} cells with length ${hx} in x-direction	
-	${nx * ny * nz}*${hx} /
+-- There are in total 1000 cells with length 0.1 in x-direction	
+	8*0.1 /
 DY
--- There are in total ${nx * ny * nz} cells with length ${hy} in y-direction	
-	${nx * ny * nz}*${hy} /
+-- There are in total 1000 cells with length 0.1 in y-direction	
+	8*0.1 /
 DZ
--- There are in total ${nx * ny * nz} cells with length ${hz} in z-direction	
-	${nx * ny * nz}*${hz} /
+-- There are in total 1000 cells with length 0.1 in z-direction	
+	8*0.1 /
 
 TOPS
 -- The depth of the top of each grid block
-	${nx * ny}*1000.0 /
+	4*100.0 /
 
 PORO
--- Constant porosity throughout all grid cells
-   ${nx * ny * nz}*0.3 /
-
-PERMX
--- The layers have perm. 500 mD
-	${nx * ny * nz}*500.0 /
-
-COPY
-	PERMX PERMY /
-	PERMX PERMZ /
-/
+-- Constant porosity of 0.1 throughout all grid cells
+   8*0.1 /
 
 ROCKBIOT
-	${rockbiot} /
+	8*2.0 /
+
+PERMX
+-- The layers have perm. 1
+	8*1 /
+
+PERMY
+-- Equal to PERMX
+	8*1 /
+
+PERMZ
+-- Equal to PERMX
+	8*1 /
 
 
 PROPS
@@ -190,8 +191,10 @@ EQUIL
 
 -- Item #: 
 -- Item #: 1 2    3    4 5    6 7 8 9
-	    1000 100   20    0 10   0 1 0 0 /
+	     100 2   20    0 10   0 1 0 0 /
 
+RPTRST
+	'BASIC=1' /
 
 SUMMARY
 -- -------------------------------------------------------------------------	 
@@ -202,52 +205,32 @@ FGOR
 
 -- 2a) Pressures of the cell where the injector and producer are located
 BPR
-2  2  ${nz} /
-${nx} ${ny} ${nz} /
+1  1  1 /
+-- 10 10 3 /
 /
 
+-- 2b) Gas saturation at given grid points
+BGSAT
+1  1  1 /
+/
+
+FOPR
 
 FUOPR
-
-WBHP
-/
-
-WWIR
-/
-
-WWPR
-/
 
 
 SCHEDULE
 -- -------------------------------------------------------------------------
-
 RPTSCHED
-	'NOTHING' /
+	'PRES' /
 
 RPTRST
 	'BASIC=1' /
 
-WELSPECS
-	INJE G 2 2 1* WAT /
-	PROD G ${nx-1} ${ny-1} 1* WAT /
-/
 
-COMPDAT
-	INJE 1* 1* 1 ${nz} OPEN 1* 1* 0.2 /
-	PROD 1* 1* 1 ${nz} OPEN 1* 1* 0.2 /
-/
-
-WCONINJE
-	INJE WAT SHUT RATE ${inj_rate} 1* 900 /
-/
-
-WCONPROD
-	PROD SHUT WRAT 1* ${inj_rate} /
-/
 
 TSTEP
-	${n_time}*10
+	20*10
 /
 
 

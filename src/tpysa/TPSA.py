@@ -29,6 +29,7 @@ class TPSA:
     def discretize(self, data: dict) -> sps.sparray:
         """
         Assemble the TPSA matrix, given material constants in the data dictionary.
+        Also sets the reference pressure, if available.
         """
 
         # Generate the matrices from (2.13) and (3.5)
@@ -39,6 +40,8 @@ class TPSA:
         M = self.mass(data)
 
         self.system = A - M
+
+        self.ref_pressure = data.get("ref_pressure", np.zeros(self.sd.num_cells))
 
     def assemble_dual_var_map(self, data: dict) -> sps.sparray:
         """
@@ -245,11 +248,14 @@ class TPSA:
 
         return np.hstack((rhs_u, rhs_r, rhs_p))
 
-    def solve(self, data, pressure_source) -> tuple:
-        rhs = self.assemble_isotropic_stress_source(data, pressure_source)
-        rhs += self.assemble_gravity_force(data)
+    def solve(self, data, pressure_source) -> tuple[np.ndarray]:
+        diff_pressure = pressure_source - self.ref_pressure
+        rhs = self.assemble_isotropic_stress_source(data, diff_pressure)
 
-        sol = sps.linalg.spsolve(self.system, rhs)
+        if self.system.shape[0] > 1e5:
+            sol, info = sps.linalg.bicgstab(self.system, rhs)
+        else:
+            sol = sps.linalg.spsolve(self.system, rhs)
 
         u, r, p, _ = np.split(sol, np.cumsum(self.ndofs))
 
@@ -258,4 +264,6 @@ class TPSA:
     def recover_volumetric_change(
         self, solid_p: np.ndarray, fluid_p: np.ndarray, data: dict
     ) -> np.ndarray:
-        return (solid_p + data["alpha"] * fluid_p) / data["lambda"]
+        return (solid_p + data["alpha"] * (fluid_p - self.ref_pressure)) / data[
+            "lambda"
+        ]

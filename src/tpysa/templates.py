@@ -8,7 +8,8 @@ def generate_cart_grid(
     domain_length: float = 100,
     template_name: str = "CARTGRID",
     output_file: str = None,
-    rockbiot: float = 1.0,
+    rockbiot: np.ndarray = None,
+    inj_rate: float = 0.0,
     time_steps: int = 20,
 ):
 
@@ -19,6 +20,14 @@ def generate_cart_grid(
     else:
         raise ValueError
 
+    # Make rockbiot into a string
+    if rockbiot is None:
+        rockbiot_str = "{}*{}".format(nx * ny * nz, 0.0)
+    else:
+        rockbiot = rockbiot * 1e5  # Conversion from 1/Pa to 1/bar
+        rockbiot_str = "{}*{}".format(nx * ny * nz, rockbiot[0])
+        # rockbiot_str = str(rockbiot)[1:-1]
+
     data = {
         "nx": nx,
         "ny": ny,
@@ -27,7 +36,8 @@ def generate_cart_grid(
         "hy": domain_length / ny,
         "hz": domain_length / nz,
         "n_time": time_steps,
-        "rockbiot": rockbiot * 1e5,  # Conversion
+        "rockbiot": rockbiot_str,
+        "inj_rate": inj_rate,  # m3/day
     }
 
     dir_name = os.path.dirname(__file__)
