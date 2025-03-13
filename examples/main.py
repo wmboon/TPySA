@@ -10,43 +10,14 @@ from opm.io.summary import SummaryConfig
 
 import tpysa
 
-if __name__ == "__main__":
 
-    ## Input: Model and discretization parameters
-    data = {
-        "mu": 1e10,  # 10 GPa
-        "lambda": 1e10,  # 10 GPa
-        "alpha": 1,  # O(1)
-    }
-    inj_rate = 0.05  # sm3/day
-    nx = 10
-    lagged = True
-
-    ## Data management
-
-    for key, item in data.items():
-        data[key] = np.full(nx**3, item)  # Ensure the data entries are cell-wise
-
-    data["rock_biot"] = data["alpha"] * data["alpha"] / data["lambda"]  # 1/Pa
-
-    ## Create a n x n x n Cartesian grid
-
-    case_str = "cartgrid/GRID_" + str(nx)
-    dir_name = os.path.dirname(__file__)
-    opmcase = os.path.join(dir_name, case_str)
-    data_file = "{}.DATA".format(opmcase)
-
-    tpysa.generate_cart_grid(
-        nx,
-        output_file=data_file,
-        rockbiot=data["rock_biot"],
-        inj_rate=inj_rate,
-        time_steps=40,
-    )
-
+def run_poromechanics(
+    opmcase: str, data: dict, lagged: bool, save_to_vtk: bool = False
+):
     ## Parse deck
 
     parser = Parser()
+    data_file = "{}.DATA".format(opmcase)
     deck = parser.parse(data_file)
 
     ## Initialize flow simulator
@@ -65,8 +36,8 @@ if __name__ == "__main__":
 
     ## Initial conditions
     sim.step_init()  # Creates the EGRID file
-    fluid_p0 = sim.get_primary_variable("pressure")
-    data["ref_pressure"] = fluid_p0.copy()
+    fluid_p = sim.get_primary_variable("pressure")
+    data["ref_pressure"] = fluid_p.copy()
 
     ## Extract grid
 
@@ -82,7 +53,7 @@ if __name__ == "__main__":
 
     tpsa_disc = tpysa.TPSA(grid)
     tpsa_disc.discretize(data)
-    solid_p0 = np.zeros_like(fluid_p0)
+    solid_p0 = np.zeros_like(fluid_p)
 
     ## Choose coupling scheme
     n_time = len(schedule.reportsteps)
@@ -106,9 +77,8 @@ if __name__ == "__main__":
         fluid_p = sim.get_primary_variable("pressure")
         displ, rotat, solid_p = tpsa_disc.solve(data, fluid_p)
 
-        # Compute the changes in solid and fluid pressures
+        # Compute the change in solid pressures
         # during the previous time step
-        delta_fp = (fluid_p - fluid_p0) / dt
         delta_sp = (solid_p - solid_p0) / dt
 
         # Compute the mass source
@@ -118,18 +88,19 @@ if __name__ == "__main__":
         coupler.save_source(current_step, vol_source)
         coupler.set_mass_source(grid, schedule, current_step)
 
-        # Save the pressures for the next time step
-        fluid_p0 = fluid_p.copy()
+        # Save the solid pressure for the next time step
         solid_p0 = solid_p.copy()
 
-        if current_step == 10:
+        if save_to_vtk:
             vol_change = tpsa_disc.recover_volumetric_change(solid_p, fluid_p, data)
-            tpysa.write_vtk(
-                grid,
-                [fluid_p, solid_p, displ, rotat, vol_change],
-                ["fluid_p", "solid_p", "displacement", "rotation", "vol_change"],
-                "{}_solutions.vtu".format(opmcase),
-            )
+            sol_dict = {
+                "pressure_fluid": fluid_p,
+                "pressure_solid": solid_p,
+                "displacement": displ,
+                "rotation": rotat,
+                "vol_change": vol_change,
+            }
+            tpysa.write_vtk(grid, sol_dict, opmcase, current_step)
 
         # Advance
         sim.step()
@@ -147,3 +118,82 @@ if __name__ == "__main__":
     # np.savez(array_str, pressure=BPR, time=time)
 
     pass
+
+
+def cartgrid_example(nx=5):
+    ## Input: Model and discretization parameters
+    data = {
+        "mu": 1e10,  # 10 GPa
+        "lambda": 1e10,  # 10 GPa
+        "alpha": 1,  # O(1)
+    }
+    inj_rate = 0.05  # sm3/day
+    lagged = True
+    save_to_vtk = True
+
+    num_cells = nx**3
+
+    ## Data management
+
+    for key, item in data.items():
+        data[key] = np.full(num_cells, item)  # Ensure the data entries are cell-wise
+
+    data["rock_biot"] = data["alpha"] * data["alpha"] / data["lambda"]  # 1/Pa
+
+    ## Create a n x n x n Cartesian grid
+
+    case_str = "cartgrid/GRID_" + str(nx)
+    dir_name = os.path.dirname(__file__)
+    opmcase = os.path.join(dir_name, case_str)
+    data_file = "{}.DATA".format(opmcase)
+
+    tpysa.generate_cart_grid(
+        nx,
+        output_file=data_file,
+        rockbiot=data["rock_biot"],
+        inj_rate=inj_rate,
+        time_steps=40,
+    )
+
+    run_poromechanics(opmcase, data, lagged, save_to_vtk)
+
+
+def faulted_grid_example():
+    ## Input: Model and discretization parameters
+    data = {
+        "mu": 1e10,  # 10 GPa
+        "lambda": 1e10,  # 10 GPa
+        "alpha": 1,  # O(1)
+    }
+    inj_rate = 0.05  # sm3/day
+    lagged = True
+
+    num_cells = 20 * 15 * 9
+
+    ## Data management
+
+    for key, item in data.items():
+        data[key] = np.full(num_cells, item)  # Ensure the data entries are cell-wise
+
+    data["rock_biot"] = data["alpha"] * data["alpha"] / data["lambda"]  # 1/Pa
+
+    ## Create a n x n x n Cartesian grid
+
+    case_str = "fault_grid/FAULT"
+    dir_name = os.path.dirname(__file__)
+    opmcase = os.path.join(dir_name, case_str)
+    data_file = "{}.DATA".format(opmcase)
+
+    tpysa.generate_faulted_grid(
+        output_file=data_file,
+        rockbiot=data["rock_biot"],
+        inj_rate=inj_rate,
+        time_steps=40,
+    )
+
+    run_poromechanics(opmcase, data, lagged, save_to_vtk=True)
+
+
+if __name__ == "__main__":
+    # cartgrid_example(nx=5)
+    faulted_grid_example()

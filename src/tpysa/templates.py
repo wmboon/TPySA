@@ -60,7 +60,11 @@ def stringify_rockbiot(rockbiot: np.ndarray, num_cells: int):
     # Make rockbiot into a string
     if isinstance(rockbiot, np.ndarray):
         rockbiot = rockbiot * 1e5  # Conversion from 1/Pa to 1/bar
-        rockbiot_str = " ".join([str(rock) for rock in rockbiot])
+
+        if np.all(rockbiot == rockbiot[0]):
+            rockbiot_str = "{}*{}".format(num_cells, rockbiot[0])
+        else:
+            rockbiot_str = " ".join([str(rock) for rock in rockbiot])
     else:
         rockbiot_str = "{}*{}".format(num_cells, 0.0)
 

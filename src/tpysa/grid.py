@@ -9,6 +9,7 @@ from opmcpg._cpggrid import (
 )
 from opm.io.ecl import EclFile, EGrid
 import vtk
+from vtkmodules.util.numpy_support import numpy_to_vtk
 
 
 class Grid(EGrid):
@@ -103,18 +104,36 @@ class Grid(EGrid):
             cell_nodes = self.compute_cell_nodes()
 
             points = vtk.vtkPoints()
-            for i, x in enumerate(self.nodes.T):
-                points.InsertPoint(i, x)
+            points.SetData(numpy_to_vtk(self.nodes.T))
 
-            self.vtk_grid = vtk.vtkUnstructuredGrid()
-            self.vtk_grid.Allocate(self.num_cells)
+            faces = vtk.vtkCellArray()
+            faceLocations = vtk.vtkCellArray()
+
+            cells = vtk.vtkCellArray()
+            cellTypes = vtk.vtkUnsignedCharArray()
 
             for cell in np.arange(self.num_cells):
-                node_inds = slice(cell_nodes.indptr[cell], cell_nodes.indptr[cell + 1])
-                nodes = cell_nodes.indices[node_inds]
-                self.vtk_grid.InsertNextCell(vtk.VTK_HEXAHEDRON, 8, nodes)
+                cellTypes.InsertNextValue(vtk.VTK_HEXAHEDRON)
 
+                loc = slice(cell_nodes.indptr[cell], cell_nodes.indptr[cell + 1])
+                node_inds = cell_nodes.indices[loc]
+
+                if len(node_inds) != 8:
+                    xyz = np.vstack(self.xyz_from_active_index(cell))
+                    keep_node = np.empty(len(node_inds), dtype=bool)
+
+                    for ind, node in enumerate(node_inds):
+                        dist = np.linalg.norm(
+                            xyz - self.nodes[:, node][:, None], ord=np.inf, axis=0
+                        )
+                        keep_node[ind] = np.min(dist) <= 1e-10
+
+                    node_inds = node_inds[keep_node]
+                cells.InsertNextCell(8, node_inds)
+
+            self.vtk_grid = vtk.vtkUnstructuredGrid()
             self.vtk_grid.SetPoints(points)
+            self.vtk_grid.SetPolyhedralCells(cellTypes, cells, faceLocations, faces)
 
         return self.vtk_grid
 
