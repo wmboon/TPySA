@@ -99,6 +99,9 @@ class Grid(EGrid):
             self.face_nodes @ self.tags["domain_boundary_faces"]
         )
 
+        self.tags["displ_bdry"] = self.tags["domain_boundary_faces"].copy()
+        self.tags["tract_bdry"] = np.zeros_like(self.tags["domain_boundary_faces"])
+
     def get_vtk(self) -> vtk.vtkUnstructuredGrid:
         if not hasattr(self, "vtk_grid"):
             cell_nodes = self.compute_cell_nodes()
@@ -144,3 +147,25 @@ def vectors_to_np(input) -> np.ndarray:
 
 def scalars_to_np(input) -> np.ndarray:
     return np.array(input, copy=False)
+
+
+class CartGrid(Grid):
+    """docstring for CartGrid."""
+
+    def tag_boundaries(self):
+        super(CartGrid, self).tag_boundaries()
+
+        self.tags["tract_bdry"] = np.isclose(
+            self.face_centers[2], np.min(self.face_centers[2])
+        )
+
+        self.tags["displ_bdry"] = np.logical_xor(
+            self.tags["domain_boundary_faces"], self.tags["tract_bdry"]
+        )
+
+
+class FaultGrid(Grid):
+    """docstring for CartGrid."""
+
+    def tag_boundaries(self):
+        super(CartGrid, self).tag_boundaries()

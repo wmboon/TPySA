@@ -21,7 +21,10 @@ def write_vtk(
         reader.Update()
         vtk_object = reader.GetOutput()
 
-    if vtk_object.points is None or not os.path.isfile(file_name):
+        if vtk_object.points is None:  # If the grid is empty
+            vtk_object = grid.get_vtk()
+
+    else:
         vtk_object = grid.get_vtk()
 
     dataset = dsa.WrapDataObject(vtk_object)

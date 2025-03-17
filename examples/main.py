@@ -12,7 +12,11 @@ import tpysa
 
 
 def run_poromechanics(
-    opmcase: str, data: dict, lagged: bool, save_to_vtk: bool = False
+    opmcase: str,
+    data: dict,
+    save_to_vtk: bool = False,
+    CouplerType=tpysa.Lagged,
+    GridType=tpysa.Grid,
 ):
     ## Parse deck
 
@@ -40,9 +44,8 @@ def run_poromechanics(
     data["ref_pressure"] = fluid_p.copy()
 
     ## Extract grid
-
     egrid_file = "{}.EGRID".format(opmcase)
-    grid = tpysa.Grid(egrid_file)
+    grid = GridType(egrid_file)
 
     # Double check that ROCKBIOT is inserted appropriately
     field_props = state.field_props()
@@ -59,10 +62,7 @@ def run_poromechanics(
     n_time = len(schedule.reportsteps)
     n_space = grid.num_cells
 
-    if lagged:
-        coupler = tpysa.Lagged(n_space)
-    else:
-        coupler = tpysa.Iterative(n_space, n_time, opmcase)
+    coupler = CouplerType(n_space, n_time, opmcase)
 
     ## Ready to simulate
     reportsteps = schedule.reportsteps
@@ -128,7 +128,7 @@ def cartgrid_example(nx=5):
         "alpha": 1,  # O(1)
     }
     inj_rate = 0.05  # sm3/day
-    lagged = True
+    coupler = tpysa.Lagged
     save_to_vtk = True
 
     num_cells = nx**3
@@ -155,7 +155,7 @@ def cartgrid_example(nx=5):
         time_steps=40,
     )
 
-    run_poromechanics(opmcase, data, lagged, save_to_vtk)
+    run_poromechanics(opmcase, data, save_to_vtk, coupler, tpysa.CartGrid)
 
 
 def faulted_grid_example():
@@ -166,7 +166,8 @@ def faulted_grid_example():
         "alpha": 1,  # O(1)
     }
     inj_rate = 0.05  # sm3/day
-    lagged = True
+    coupler = tpysa.Lagged
+    save_to_vtk = True
 
     num_cells = 20 * 15 * 9
 
@@ -191,9 +192,9 @@ def faulted_grid_example():
         time_steps=40,
     )
 
-    run_poromechanics(opmcase, data, lagged, save_to_vtk=True)
+    run_poromechanics(opmcase, data, save_to_vtk, coupler)
 
 
 if __name__ == "__main__":
-    # cartgrid_example(nx=5)
-    faulted_grid_example()
+    cartgrid_example(nx=10)
+    # faulted_grid_example()

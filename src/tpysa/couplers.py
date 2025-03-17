@@ -35,7 +35,7 @@ class Coupler:
 class Lagged(Coupler):
     """docstring for Lagged coupler."""
 
-    def __init__(self, n_space):
+    def __init__(self, n_space, n_time=10, opm_case=""):
         self.source = np.zeros(n_space)
         self.str = "lagged"
 

@@ -50,18 +50,18 @@ class TPSA:
         # Extract cell-face pairs
         cf = sps.csc_array(self.sd.cell_faces)
 
-        self.delta_ki = self.assemble_delta_ki()
+        self.mu_delta_ki = self.assemble_mu_delta_ki(data["mu"])
 
         # Assemble the blocks of (3.7) where
         # A_ij is the block coupling variable i and j.
-        mu_bar = self.harmonic_avg(data["mu"])
+        mu_bar = self.harmonic_avg()
         A_uu = -2 * mu_bar[:, None] * cf
         A_uu = sps.block_diag([A_uu] * self.sd.dim)
 
-        dk_mu = self.assemble_delta_mu_k(data["mu"])
+        dk_mu = self.assemble_delta_mu_k()
         A_pp = -dk_mu[:, None] * cf
 
-        Xi = self.assemble_xi(data["mu"])
+        Xi = self.assemble_xi()
         Xi_tilde = self.assemble_xi_tilde(Xi)
 
         A_ru = self.assemble_R_Xi(Xi, True)
@@ -84,20 +84,21 @@ class TPSA:
 
         return face_areas[:, None] * A
 
-    def assemble_delta_ki(self) -> np.ndarray:
+    def assemble_mu_delta_ki(self, mu: np.ndarray) -> np.ndarray:
         """
-        Compute delta_k^i from (1.12) for every face-cell pair
+        Compute mu / delta_k^i from (1.12) for every face-cell pair
         """
         faces, cells, orient = self.find_cf
-        return np.sum(
+        delta_ki = np.sum(
             (
                 (self.sd.face_centers[:, faces] - self.sd.cell_centers[:, cells])
                 * (orient * self.unit_normals[:, faces])
             ),
             axis=0,
         )
+        return mu[cells] / delta_ki
 
-    def harmonic_avg(self, mu: np.ndarray) -> np.ndarray:
+    def harmonic_avg(self) -> np.ndarray:
         """
         Compute the harmonic average of mu divided by delta_k
         """
@@ -107,9 +108,8 @@ class TPSA:
         # for boundary faces, it computes (mu / delta)^2
 
         faces, cells, _ = self.find_cf
-        mu_delta_ki = mu[cells] / self.delta_ki
 
-        prod = sps.csc_array((mu_delta_ki, (cells, faces)))
+        prod = sps.csc_array((self.mu_delta_ki, (cells, faces)))
         prod.sort_indices()
         numerator = prod.data[prod.indptr[:-1]] * prod.data[prod.indptr[1:] - 1]
 
@@ -117,38 +117,33 @@ class TPSA:
         # for interior faces, it takes the sum of mu / delta
         # for boundary faces, it computes mu / delta
 
-        mu_delta_ki = mu[cells] / self.delta_ki
-        denominator = np.bincount(faces, weights=mu_delta_ki)
+        denominator = np.bincount(faces, weights=self.mu_delta_ki)
 
         return numerator / denominator
 
-    def assemble_delta_mu_k(self, mu: np.ndarray) -> np.ndarray:
+    def assemble_delta_mu_k(self) -> np.ndarray:
         """
         Compute 1 / 2 ( mu_i delta_k^-i + mu_j delta_k^-j)
         for each face k with cells (i,j)
         """
 
         # Interior faces
-        faces, cells, _ = self.find_cf
-        mu_delta_ki = mu[cells] / self.delta_ki
+        faces, _, _ = self.find_cf
+        dk_mu = 1 / (2 * np.bincount(faces, weights=self.mu_delta_ki))
 
-        dk_mu = 1 / (2 * np.bincount(faces, weights=mu_delta_ki))
-
-        # Boundary faces
-        dk_mu[self.sd.tags["domain_boundary_faces"]] = 0
+        # Boundary faces with displacement conditions
+        dk_mu[self.sd.tags["displ_bdry"]] = 0
 
         return dk_mu
 
-    def assemble_xi(self, mu: np.ndarray) -> sps.sparray:
+    def assemble_xi(self) -> sps.sparray:
         """
         Compute the averaging operator Xi
         """
         faces, cells, _ = self.find_cf
-        Xi = sps.csc_array((mu[cells] / self.delta_ki, (faces, cells)))
+        Xi = sps.csc_array((self.mu_delta_ki, (faces, cells)))
 
-        Xi *= (np.logical_not(self.sd.tags["domain_boundary_faces"]) / Xi.sum(axis=1))[
-            :, None
-        ]
+        Xi *= (np.logical_not(self.sd.tags["displ_bdry"]) / Xi.sum(axis=1))[:, None]
 
         return Xi
 
