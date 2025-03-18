@@ -29,8 +29,8 @@ def run_poromechanics(
     state = EclipseState(deck)
     schedule = Schedule(deck, state)
 
-    schedule.open_well("INJE", 5)
-    schedule.open_well("PROD", 5)
+    schedule.open_well("INJE", 0)
+    schedule.open_well("PROD", 0)
 
     schedule.shut_well("INJE", 25)
     schedule.shut_well("PROD", 25)
@@ -162,10 +162,10 @@ def faulted_grid_example():
     ## Input: Model and discretization parameters
     data = {
         "mu": 1e10,  # 10 GPa
-        "lambda": 1e10,  # 10 GPa
+        "lambda": 1e12,  # 100 GPa
         "alpha": 1,  # O(1)
     }
-    inj_rate = 0.05  # sm3/day
+    inj_rate = 1  # sm3/day
     coupler = tpysa.Lagged
     save_to_vtk = True
 
@@ -189,12 +189,12 @@ def faulted_grid_example():
         output_file=data_file,
         rockbiot=data["rock_biot"],
         inj_rate=inj_rate,
-        time_steps=40,
+        time_steps=30,
     )
 
-    run_poromechanics(opmcase, data, save_to_vtk, coupler)
+    run_poromechanics(opmcase, data, save_to_vtk, coupler, tpysa.FaultGrid)
 
 
 if __name__ == "__main__":
-    cartgrid_example(nx=10)
-    # faulted_grid_example()
+    # cartgrid_example(nx=10)
+    faulted_grid_example()

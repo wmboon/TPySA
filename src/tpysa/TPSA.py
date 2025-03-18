@@ -1,11 +1,11 @@
 import numpy as np
 import scipy.sparse as sps
-
+import time
 import tpysa
 
 
 class TPSA:
-    def __init__(self, grid: tpysa.Grid):
+    def __init__(self, grid: tpysa.Grid, ndof_tol=1e5):
         """
         Initializes an instance of the TPSA discretization on a given grid.
         """
@@ -20,6 +20,9 @@ class TPSA:
         self.ndof_per_cell = self.sd.dim + self.dim_r + 1
         self.ndofs = grid.num_cells * np.array([grid.dim, self.dim_r, 1])
 
+        # Decide whether to use the direct solver
+        self.use_direct_solver = self.ndofs.sum() <= ndof_tol
+
         # Save the unit normal vectors
         self.unit_normals = self.sd.face_normals / self.sd.face_areas
 
@@ -33,13 +36,19 @@ class TPSA:
         """
 
         # Generate the matrices from (2.13) and (3.5)
-        self.sigma = self.assemble_dual_var_map(data)
+        self.sigma, P = self.assemble_dual_var_map(data)
         div = self.assemble_div()
 
         A = div @ self.sigma
         M = self.mass(data)
 
-        self.system = A - M
+        self.system = sps.csc_array(A - M)
+
+        if self.use_direct_solver:
+            self.system_LU = sps.linalg.splu(self.system)
+        else:
+            P_LU = sps.linalg.splu(div @ P - M)
+            self.precond = sps.linalg.LinearOperator(M.shape, P_LU.solve)
 
         self.ref_pressure = data.get("ref_pressure", np.zeros(self.sd.num_cells))
 
@@ -81,8 +90,22 @@ class TPSA:
 
         # Scaling with the face areas
         face_areas = np.tile(self.sd.face_areas, self.ndof_per_cell)
+        A = face_areas[:, None] * A
 
-        return face_areas[:, None] * A
+        if self.use_direct_solver:
+            return A, 0
+        else:
+            ## Create a preconditioner from the lower-triangular blocks
+            # fmt: off
+            P = sps.block_array(
+                [[A_uu, sps.csc_array(A_ur.shape), None], 
+                [A_ru, None, None], 
+                [A_pr, None, A_pp]]
+            )
+            # fmt: on
+            P = face_areas[:, None] * P
+
+            return A, P
 
     def assemble_mu_delta_ki(self, mu: np.ndarray) -> np.ndarray:
         """
@@ -193,7 +216,7 @@ class TPSA:
         """
         The divergence operator on the product space
         """
-        return sps.block_diag([self.sd.cell_faces.T] * self.ndof_per_cell)
+        return sps.block_diag([self.sd.cell_faces.T.tocsc()] * self.ndof_per_cell)
 
     def mass(self, data: dict) -> sps.sparray:
         """
@@ -247,10 +270,31 @@ class TPSA:
         diff_pressure = pressure_source - self.ref_pressure
         rhs = self.assemble_isotropic_stress_source(data, diff_pressure)
 
-        if self.system.shape[0] > 1e5:
-            sol, info = sps.linalg.bicgstab(self.system, rhs)
+        print("")
+        now = time.time()
+        if self.use_direct_solver:
+            sol = self.system_LU.solve(rhs)
+            print("Solid mechanics solved ({:.1}sec)".format(time.time() - now))
         else:
-            sol = sps.linalg.spsolve(self.system, rhs)
+            num_it = 0
+
+            def callback(_):
+                nonlocal num_it
+                num_it += 1
+
+            sol, info = sps.linalg.gmres(
+                self.system,
+                rhs,
+                M=self.precond,
+                callback=callback,
+                callback_type="pr_norm",
+            )
+            assert info == 0
+            print(
+                "Solid mechanics GMRes converged in {} iterations ({:.1}sec)".format(
+                    num_it, time.time() - now
+                )
+            )
 
         u, r, p, _ = np.split(sol, np.cumsum(self.ndofs))
 
