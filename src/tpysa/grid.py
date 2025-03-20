@@ -168,16 +168,15 @@ class FaultGrid(Grid):
     """docstring for CartGrid."""
 
     def tag_boundaries(self):
-
         super(FaultGrid, self).tag_boundaries()
 
         # Extract the "top" faces
-        top = self.tags["domain_boundary_faces"].copy()
+        bdry = self.tags["domain_boundary_faces"].copy()
 
-        top = np.logical_and(top, self.face_centers[1] < 3490)  # Remove north bdry
-        top = np.logical_and(top, self.face_centers[0] < 3997)  # Remove east bdry
-        top = np.logical_and(top, self.face_centers[1] > 2010)  # Remove south bdry
-        top = np.logical_and(top, self.face_centers[0] > 2002)  # Remove west bdry
+        north = np.logical_and(bdry, self.face_centers[1] > 3490)
+        east = np.logical_and(bdry, self.face_centers[0] > 3997)
+        south = np.logical_and(bdry, self.face_centers[1] < 2010)
+        west = np.logical_and(bdry, self.face_centers[0] < 2002)
 
         # Create a plane that lies in the middle of the domain
         origin = self.cell_centers[:, 1200]
@@ -188,13 +187,15 @@ class FaultGrid(Grid):
         rhs = np.array([xpoint[2], ypoint[2]])
 
         plane_grad = np.linalg.solve(system, rhs)
-
         plane_z = plane_grad @ (self.face_centers[:2, :] - origin[:2, None]) + origin[2]
-        top_half = self.face_centers[2, :] <= plane_z  # Remove bottom bdry
 
-        top = np.logical_and(top, top_half)
+        top_half = self.face_centers[2, :] <= plane_z
 
-        self.tags["tract_bdry"] = top
+        tract = np.zeros_like(bdry)
+        tract = np.logical_or(tract, south)
+        tract = np.logical_or(tract, north)
+
+        self.tags["tract_bdry"] = tract
 
         self.tags["displ_bdry"] = np.logical_xor(
             self.tags["domain_boundary_faces"], self.tags["tract_bdry"]
