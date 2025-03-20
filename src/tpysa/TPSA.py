@@ -271,10 +271,14 @@ class TPSA:
         rhs = self.assemble_isotropic_stress_source(data, diff_pressure)
 
         print("")
-        now = time.time()
+        start_time = time.time()
         if self.use_direct_solver:
             sol = self.system_LU.solve(rhs)
-            print("Solid mechanics solved ({:.1}sec)".format(time.time() - now))
+            print(
+                "\nSolid mechanics: direct solve ({:.2f}sec)".format(
+                    time.time() - start_time
+                )
+            )
         else:
             num_it = 0
 
@@ -291,8 +295,8 @@ class TPSA:
             )
             assert info == 0
             print(
-                "Solid mechanics GMRes converged in {} iterations ({:.1}sec)".format(
-                    num_it, time.time() - now
+                "\nSolid mechanics: GMRes converged in {} iterations ({:.1f}sec)".format(
+                    num_it, time.time() - start_time
                 )
             )
 
