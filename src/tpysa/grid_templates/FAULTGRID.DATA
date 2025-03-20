@@ -49,13 +49,22 @@ PORO
    2700*0.3 /
 
 PERMX
--- The layers have perm. 500 mD
-	2700*500.0 /
+-- The layers have perm. 100D
+	2700*1e5 /
 
 COPY
 	PERMX PERMY /
 	PERMX PERMZ /
 /
+
+--       I1  I2   J1  J2   K1  K2   DIRECTION
+BCCON
+1        1   1    1*   1*    1*   1*   X-    /
+2        20   20    1*   1*    1*   1*   X+    /
+3        1*   1*    1   1    1*   1*   Y-    /
+4        1*   1*    15   15    1*   1*   Y+    /
+/
+
 
 ROCKBIOT
 	${rockbiot} /
@@ -65,8 +74,9 @@ PROPS
 -- -------------------------------------------------------------------------
 
 PVTW
--- pressure reference
- 	0.0 /
+--     RefPres        Bw          Cw           Vw         dVw
+--       bara       rm3/m3       1/bara        cP        1/bara
+         79.0      1.02643    0.37876E-04   0.39831    0.74714E-04 /
 
 SWOF
 -- Column 1: water saturation
@@ -129,33 +139,40 @@ DENSITY
 -- In METRIC units:
     859.5 1033.0 0.854 /
 
-PVDO
-100 1.0 1.0
-200 0.9 1.0
-/
 
 
 PVDG
--- Column 1: gas phase pressure (psia)
--- Column 2: gas formation volume factor (rb per Mscf)
--- 	     - in Odeh's paper the units are said to be given in rb per bbl, 
--- 	       but this is assumed to be a mistake: FVF-values in Odeh's paper 
---	       are given in rb per scf, not rb per bbl. This will be in 
---	       agreement with conventions
--- Column 3: gas viscosity (cP)
+-- Table number: 1
+    10.0000    0.266161     0.0108 
+    15.0000    0.127259     0.0116 
+    25.0000    0.062022     0.0123 
+    45.0000    0.030190     0.0131 
+    65.0000    0.019752     0.0137 
+    84.0000    0.014799     0.0144 
+   100.0000    0.012136     0.0149 
+   115.0000    0.010358     0.0155 
+   145.0000    0.007993     0.0170 
+   175.0000    0.006524     0.0191 
+   205.0000    0.005556     0.0218 
+   235.0000    0.004901     0.0254 
+   265.0000    0.004461     0.0301 
+   305.0000    0.004112     0.0388 
+   355.0000    0.003966     0.0568 
+   405.0000    0.003850     0.0884 
+   455.0000    0.003763     0.1363 
+   505.0000    0.003699     0.1746 
+/
 
--- Using values from lower right table in Odeh's table 2:
-14.700	166.666	0.008000
-264.70	12.0930	0.009600
-514.70	6.27400	0.011200
-1014.7	3.19700	0.014000
-2014.7	1.61400	0.018900
-2514.7	1.29400	0.020800
-3014.7	1.08000	0.022800
-4014.7	0.81100	0.026800
-5014.7	0.64900	0.030900
-9014.7	0.38600	0.047000 /
+PVCDO
+    277.0        1.001      0.0          835.0    0.0
+/
 
+
+ROCK
+	1* 1E-5 /
+
+ROCKOPTS
+	1* STORE /
 
 SOLUTION
 -- -------------------------------------------------------------------------
@@ -181,6 +198,8 @@ EQUIL
 -- Item #: 1 2    3    4 5    6 7 8 9
 	    1000 100   20    0 10   0 1 0 0 /
 
+RPTRST
+	'BASIC=2' /
 
 SUMMARY
 -- -------------------------------------------------------------------------	 
@@ -195,8 +214,14 @@ BPR
 19 14 9 /
 /
 
+FWIP
 
 FUOPR
+
+FGIP
+
+WGIR
+/
 
 WBHP
 /
@@ -215,28 +240,35 @@ RPTSCHED
 	'NOTHING' /
 
 RPTRST
-	'BASIC=1' /
+	'BASIC=2' /
+
+BCPROP                                                          
+   1  RATE WATER -1 / 
+   2  FREE /
+--   3  FREE /
+--   4  FREE /
+/
 
 WELSPECS
-	INJE G 15 7 1* WAT /
-	PROD G 8 8 1* WAT /
+	INJE G 17 8 1* WAT /
+--	PROD G 8 8 1* WAT /
 /
 
 COMPDAT
 	INJE 1* 1* 1 9 OPEN 1* 1* 0.2 /
-	PROD 1* 1* 1 9 OPEN 1* 1* 0.2 /
+--	PROD 1* 1* 1 9 OPEN 1* 1* 0.2 /
 /
 
 WCONINJE
 	INJE WAT SHUT RATE ${inj_rate} 1* 900 /
 /
 
-WCONPROD
-	PROD SHUT WRAT 1* ${inj_rate} /
-/
+-- WCONPROD
+--	PROD SHUT WRAT 1* ${inj_rate} /
+-- /
 
 TSTEP
-	${n_time}*10
+	${n_time}*365
 /
 
 
