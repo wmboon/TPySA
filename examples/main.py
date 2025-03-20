@@ -29,11 +29,11 @@ def run_poromechanics(
     state = EclipseState(deck)
     schedule = Schedule(deck, state)
 
-    schedule.open_well("INJE", 0)
-    schedule.open_well("PROD", 0)
+    for well in schedule.get_wells(0):
+        schedule.open_well(well.name, 0)
 
-    schedule.shut_well("INJE", 25)
-    schedule.shut_well("PROD", 25)
+    for well in schedule.get_wells(25):
+        schedule.shut_well(well.name, 25)
 
     summary_config = SummaryConfig(deck, state, schedule)
     sim = BlackOilSimulator(deck, state, schedule, summary_config)
@@ -165,7 +165,7 @@ def faulted_grid_example():
         "lambda": 1e12,  # 100 GPa
         "alpha": 1,  # O(1)
     }
-    inj_rate = 1  # sm3/day
+    inj_rate = 1e3  # sm3/day
     coupler = tpysa.Lagged
     save_to_vtk = True
 
@@ -178,7 +178,7 @@ def faulted_grid_example():
 
     data["rock_biot"] = data["alpha"] * data["alpha"] / data["lambda"]  # 1/Pa
 
-    ## Create a n x n x n Cartesian grid
+    ## Create the faulted grid from template
 
     case_str = "fault_grid/FAULT"
     dir_name = os.path.dirname(__file__)
@@ -189,7 +189,7 @@ def faulted_grid_example():
         output_file=data_file,
         rockbiot=data["rock_biot"],
         inj_rate=inj_rate,
-        time_steps=30,
+        time_steps=50,
     )
 
     run_poromechanics(opmcase, data, save_to_vtk, coupler, tpysa.FaultGrid)
