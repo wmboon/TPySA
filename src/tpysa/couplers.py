@@ -5,7 +5,9 @@ from opm.io.schedule import Schedule
 
 
 class Coupler:
-    def set_mass_source(self, grid: EGrid, schedule: Schedule, current_step: int):
+    def set_mass_source(
+        self, grid: EGrid, schedule: Schedule, current_step: int, variables: dict
+    ):
         source = self.get_source(current_step)
 
         # Make into array if it is a scalar
@@ -14,16 +16,19 @@ class Coupler:
 
         # Convert units from m3/s to kg/day
         source *= 24 * 60 * 60  # from 1/second to 1/day
-        source *= 997  # from m^3 to kg
+        source *= variables["rho_w"]  # from m^3 to kg
 
         # Convert to string
-        source_str = self.source_to_str(grid, source)
+        import time
 
-        # Update the keyword in the schedule
+        start_time = time.time()
+        source_str = self.source_to_str(grid, source)
+        print("Stringing source: {:.2f} sec".format(time.time() - start_time))
+
+        # Update the keyword in the schedules
         schedule.insert_keywords(source_str)
 
     def source_to_str(self, grid: EGrid, source: np.ndarray):
-
         output = [""] * len(source)
         for c, s in enumerate(source):
             ijk = [i + 1 for i in grid.ijk_from_active_index(c)]

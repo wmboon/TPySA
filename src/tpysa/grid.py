@@ -71,6 +71,8 @@ class Grid(EGrid):
         self.tags = {}
         self.tag_boundaries()
 
+        self.actnum = self.actnum.astype(bool)
+
     def compute_face_nodes(self, unstr_grid: UnstructuredGrid) -> sps.csc_array:
         indptr = scalars_to_np(unstr_grid.face_nodepos)[: self.num_faces + 1]
         indices = scalars_to_np(unstr_grid.face_nodes)[: indptr[-1]]
@@ -99,8 +101,8 @@ class Grid(EGrid):
             self.face_nodes @ self.tags["domain_boundary_faces"]
         )
 
-        self.tags["displ_bdry"] = self.tags["domain_boundary_faces"].copy()
-        self.tags["tract_bdry"] = np.zeros_like(self.tags["domain_boundary_faces"])
+        self.tags["tract_bdry"] = self.tags["domain_boundary_faces"].copy()
+        self.tags["displ_bdry"] = np.zeros_like(self.tags["domain_boundary_faces"])
 
     def get_vtk(self) -> vtk.vtkUnstructuredGrid:
         if not hasattr(self, "vtk_grid"):
@@ -129,7 +131,9 @@ class Grid(EGrid):
                         dist = np.linalg.norm(
                             xyz - self.nodes[:, node][:, None], ord=np.inf, axis=0
                         )
-                        keep_node[ind] = np.min(dist) <= 1e-10
+                        keep_node[ind] = np.min(dist) <= 1e-2
+
+                    assert keep_node.sum() == 8
 
                     node_inds = node_inds[keep_node]
                 cells.InsertNextCell(8, node_inds)

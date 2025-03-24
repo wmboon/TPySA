@@ -5,7 +5,7 @@ import tpysa
 
 
 class TPSA:
-    def __init__(self, grid: tpysa.Grid, ndof_tol=1e5):
+    def __init__(self, grid: tpysa.Grid, ndof_max=1e5):
         """
         Initializes an instance of the TPSA discretization on a given grid.
         """
@@ -21,7 +21,7 @@ class TPSA:
         self.ndofs = grid.num_cells * np.array([grid.dim, self.dim_r, 1])
 
         # Decide whether to use the direct solver
-        self.use_direct_solver = self.ndofs.sum() <= ndof_tol
+        self.use_direct_solver = self.ndofs.sum() <= ndof_max
 
         # Save the unit normal vectors
         self.unit_normals = self.sd.face_normals / self.sd.face_areas
@@ -34,25 +34,41 @@ class TPSA:
         Assemble the TPSA matrix, given material constants in the data dictionary.
         Also sets the reference pressure, if available.
         """
+        start_time = time.time()
+
+        # Extract the mean of the second Lamé parameter
+        data["mu_bar"] = np.mean(data["mu"])
 
         # Generate the matrices from (2.13) and (3.5)
-        self.sigma, P = self.assemble_dual_var_map(data)
+        self.sigma = self.assemble_dual_var_map(data, mu_scaling=data["mu_bar"])
         div = self.assemble_div()
 
         A = div @ self.sigma
-        M = self.mass(data)
+        M = self.mass(data, mu_scaling=data["mu_bar"])
 
         self.system = sps.csc_array(A - M)
+        print("Assembled TPSA system in {:.2f} sec.".format(time.time() - start_time))
 
+        start_time = time.time()
         if self.use_direct_solver:
+            print(
+                "LU-factorized TPSA system in {:.2f} sec.".format(
+                    time.time() - start_time
+                )
+            )
             self.system_LU = sps.linalg.splu(self.system)
         else:
-            P_LU = sps.linalg.splu(div @ P - M)
+            P_LU = sps.linalg.spilu(self.system, fill_factor=3)
             self.precond = sps.linalg.LinearOperator(M.shape, P_LU.solve)
+            print(
+                "Assembled ILU preconditioner in {:.2f} sec.".format(
+                    time.time() - start_time
+                )
+            )
 
         self.ref_pressure = data.get("ref_pressure", np.zeros(self.sd.num_cells))
 
-    def assemble_dual_var_map(self, data: dict) -> sps.sparray:
+    def assemble_dual_var_map(self, data: dict, mu_scaling: float = 1.0) -> sps.sparray:
         """
         Assemble the matrix from (3.7) that maps primary to dual variables
         """
@@ -64,11 +80,11 @@ class TPSA:
         # Assemble the blocks of (3.7) where
         # A_ij is the block coupling variable i and j.
         mu_bar = self.harmonic_avg()
-        A_uu = -2 * mu_bar[:, None] * cf
+        A_uu = -2 * mu_bar[:, None] / mu_scaling * cf
         A_uu = sps.block_diag([A_uu] * self.sd.dim)
 
         dk_mu = self.assemble_delta_mu_k()
-        A_pp = -dk_mu[:, None] * cf
+        A_pp = -dk_mu[:, None] * mu_scaling * cf
 
         Xi = self.assemble_xi()
         Xi_tilde = self.assemble_xi_tilde(Xi)
@@ -92,20 +108,7 @@ class TPSA:
         face_areas = np.tile(self.sd.face_areas, self.ndof_per_cell)
         A = face_areas[:, None] * A
 
-        if self.use_direct_solver:
-            return A, 0
-        else:
-            ## Create a preconditioner from the lower-triangular blocks
-            # fmt: off
-            P = sps.block_array(
-                [[A_uu, sps.csc_array(A_ur.shape), None], 
-                [A_ru, None, None], 
-                [A_pr, None, A_pp]]
-            )
-            # fmt: on
-            P = face_areas[:, None] * P
-
-            return A, P
+        return A
 
     def assemble_mu_delta_ki(self, mu: np.ndarray) -> np.ndarray:
         """
@@ -218,13 +221,13 @@ class TPSA:
         """
         return sps.block_diag([self.sd.cell_faces.T.tocsc()] * self.ndof_per_cell)
 
-    def mass(self, data: dict) -> sps.sparray:
+    def mass(self, data: dict, mu_scaling: float = 1.0) -> sps.sparray:
         """
         The diagonal terms
         """
         M_u = sps.dia_array((self.ndofs[0], self.ndofs[0]))
-        M_r = sps.diags_array(np.tile(1 / data["mu"], self.dim_r))
-        M_p = sps.diags_array(1 / data["lambda"])
+        M_r = sps.diags_array(np.tile(mu_scaling / data["mu"], self.dim_r))
+        M_p = sps.diags_array(mu_scaling / data["lambda"])
 
         M = sps.block_diag([M_u, M_r, M_p])
         cell_volumes = np.tile(self.sd.cell_volumes, self.ndof_per_cell)
@@ -270,6 +273,14 @@ class TPSA:
         diff_pressure = pressure_source - self.ref_pressure
         rhs = self.assemble_isotropic_stress_source(data, diff_pressure)
 
+        mu_scaling = np.hstack(
+            (
+                np.full(self.ndofs[0], 1 / np.sqrt(data["mu_bar"])),
+                np.full(self.ndofs[1] + self.ndofs[2], np.sqrt(data["mu_bar"])),
+            )
+        )
+        rhs *= mu_scaling
+
         print("")
         start_time = time.time()
         if self.use_direct_solver:
@@ -282,13 +293,18 @@ class TPSA:
         else:
             num_it = 0
 
-            def callback(_):
+            def callback(r):
                 nonlocal num_it
                 num_it += 1
+                print(
+                    "Iterate: {:}, Preconditioned res. norm: {:.2e}".format(num_it, r),
+                    end="/r",
+                )
 
             sol, info = sps.linalg.gmres(
                 self.system,
                 rhs,
+                rtol=1e-4,
                 M=self.precond,
                 callback=callback,
                 callback_type="pr_norm",
@@ -300,6 +316,7 @@ class TPSA:
                 )
             )
 
+        sol *= mu_scaling
         u, r, p, _ = np.split(sol, np.cumsum(self.ndofs))
 
         return u, r, p
