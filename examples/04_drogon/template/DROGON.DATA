@@ -1,0 +1,206 @@
+-- This reservoir simulation deck is made available under the Open Database
+-- License: http://opendatacommons.org/licenses/odbl/1.0/. Any rights in
+-- individual contents of the database are licensed under the Database Contents
+-- License: http://opendatacommons.org/licenses/dbcl/1.0/
+
+-- Copyright (C) 2022 Equinor
+
+--==============================================================================
+--		Synthetic reservoir simulation model Drogon (2020)
+--==============================================================================
+
+-- The Drogon model - the successor of the Reek model
+-- Used in a FMU set up
+-- Grid input data generated from RMS project 
+
+
+-- =============================================================================
+RUNSPEC
+-- =============================================================================
+
+-- Simulation run title
+TITLE
+ Drogon synthetic reservoir model
+
+-- Simulation run start
+START
+ 1 JAN 2025 /
+
+-- Fluid phases present
+GAS
+WATER
+CO2STORE
+
+-- Measurement unit used
+METRIC
+
+-- Grid dimension
+INCLUDE
+  'include/runspec/drogon.dimens' / -- exported by rms
+
+-- Table dimensions
+TABDIMS
+/
+
+-- Dimension of equilibration tables
+EQLDIMS
+/
+
+-- Regions dimension data
+INCLUDE
+  'include/runspec/drogon.regdims' / -- exported by rms
+
+-- x-,y-,z- and multnum regions
+INCLUDE
+  'include/runspec/drogon.gridopts' / -- exported by rms
+
+-- Dimensions for fault data
+FAULTDIM
+ 500 /
+
+-- Well dimension data
+WELLDIMS
+-- nwmaxz  ncwmax  ngmaxz  nwgmax
+   1       100     1       1 /
+
+-- Input and output files format
+UNIFIN
+UNIFOUT
+
+-- =============================================================================
+GRID
+-- =============================================================================
+
+INIT
+
+--Generates connections across pinched-out layers
+PINCH
+ 3*  ALL  /
+
+INCLUDE
+ 'include/grid/drogon.grid' / --exported by rms
+
+INCLUDE
+ 'include/grid/drogon.faults' / --exported by rms
+
+INCLUDE
+ 'include/grid/drogon.poro' / --exported by rms
+ 
+INCLUDE
+ 'include/grid/drogon.perm' / --exported by rms
+ 
+INCLUDE
+ 'include/grid/drogon.multnum' / --exported by rms
+
+INCLUDE
+ 'include/grid/drogon.multregt' / --from ert template
+
+ROCKBIOT
+ 	${rockbiot_str} /
+
+-- =============================================================================
+EDIT
+-- =============================================================================
+
+INCLUDE
+ 'include/edit/drogon.trans' / --exported by rms
+
+-- =============================================================================
+PROPS
+-- =============================================================================
+-- rel. perm
+INCLUDE                                
+'include/props/co2store.inc' /
+
+-- =============================================================================
+REGIONS
+-- =============================================================================
+
+--INCLUDE
+-- 'include/regions/drogon.eqlnum' / --exported by rms
+
+INCLUDE
+ 'include/regions/drogon.fipnum' / --exported by rms
+
+--INCLUDE
+-- 'include/regions/drogon.fipzon' / --exported by rms
+
+--INCLUDE
+-- 'include/regions/drogon.satnum' / --exported by rms
+
+--INCLUDE
+-- 'include/regions/drogon.pvtnum' / --exported by rms
+
+-- =============================================================================
+SOLUTION
+-- =============================================================================
+
+-- Equilibration data
+EQUIL
+2582.0  268.56 100 0.0 100 0.0 /
+-- 1750.00    310.00 100 0.0 100 0.0 /
+
+RTEMPVD
+10.0   50.0
+100.0  50.0 /
+
+-- ALLPROPS --> fluid densities, viscosities , reciprocal formation volume factors and phase relative permeabilities
+-- NORST=1  --> output for visualization only 
+RPTRST
+BASIC=2 /
+
+-- =============================================================================
+SUMMARY
+-- =============================================================================
+
+NEWTON
+MLINEARS
+
+FGIP
+WBHP
+/
+WGIR
+/
+
+-- =============================================================================
+SCHEDULE
+-- =============================================================================
+
+-- Restart file output
+RPTRST
+BASIC=2 /
+
+-- Well info
+WELSPECS
+'WINJ'  'INJ'  22  34  1*  'GAS' /
+/
+
+-- Well completions
+COMPDAT
+'WINJ'  1*  1*  1   31  'OPEN' 0  1*  0.2 /
+/
+
+-- Injection data
+-- 1.5e6 Sm3/day approximately 1 Mtpa
+WCONINJE
+'WINJ' 'GAS'  'OPEN'  'RATE'  1.0E+5  1*  800   /
+/
+
+DATES
+1 JAN 2027 /
+1 JAN 2029 /
+1 JAN 2031 /
+1 JAN 2033 /
+1 JAN 2035 /
+1 JAN 2037 /
+1 JAN 2039 /
+1 JAN 2041 /
+1 JAN 2043 /
+1 JAN 2045 /
+1 JAN 2047 /
+1 JAN 2049 /
+1 JAN 2050 /
+/
+
+END
+
