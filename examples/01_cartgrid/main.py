@@ -42,7 +42,10 @@ class CartBiot_Model(tpysa.Biot_Model):
                 "hz": 100 / nx,
             }
         )
-        super().generate_deck()
+
+        dir_name = os.path.dirname(__file__)
+        template_file = os.path.join(dir_name, "template/CARTGRID.DATA")
+        tpysa.generate_deck_from_template(template_file, self.deck_file, self.data)
 
     def operate_wells(self, schedule):
         for well in schedule.get_wells(0):
@@ -56,7 +59,7 @@ class CartGrid(tpysa.Grid):
     """docstring for CartGrid."""
 
     def tag_boundaries(self):
-        super(CartGrid, self).tag_boundaries()
+        super().tag_boundaries()
 
         # Put zero traction on the top boundary
         self.tags["tract_bdry"] = np.isclose(

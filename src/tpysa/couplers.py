@@ -60,6 +60,7 @@ class Iterative(Coupler):
         try:
             self.source = np.load(self.sources_file)["source"]
         except Exception:
+            print("Warning: No source file found")
             self.source = np.zeros((n_time, n_space))
 
         if self.source.shape != (n_time, n_space):

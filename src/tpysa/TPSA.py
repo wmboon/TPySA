@@ -5,7 +5,7 @@ import tpysa
 
 
 class TPSA:
-    def __init__(self, grid: tpysa.Grid, ndof_max=1e5):
+    def __init__(self, grid: tpysa.Grid):
         """
         Initializes an instance of the TPSA discretization on a given grid.
         """
@@ -19,9 +19,6 @@ class TPSA:
         # Numbers of degrees of freedom for the displacement, rotation, and pressure
         self.ndof_per_cell = self.sd.dim + self.dim_r + 1
         self.ndofs = grid.num_cells * np.array([grid.dim, self.dim_r, 1])
-
-        # Decide whether to use the direct solver
-        self.use_direct_solver = self.ndofs.sum() <= ndof_max
 
         # Save the unit normal vectors
         self.unit_normals = self.sd.face_normals / self.sd.face_areas
@@ -47,24 +44,7 @@ class TPSA:
         M = self.mass(data, mu_scaling=data["mu_bar"])
 
         self.system = sps.csc_array(A - M)
-        print("Assembled TPSA system in {:.2f} sec.".format(time.time() - start_time))
-
-        start_time = time.time()
-        if self.use_direct_solver:
-            print(
-                "LU-factorized TPSA system in {:.2f} sec.".format(
-                    time.time() - start_time
-                )
-            )
-            self.system_LU = sps.linalg.splu(self.system)
-        else:
-            P_LU = sps.linalg.spilu(self.system, fill_factor=3)
-            self.precond = sps.linalg.LinearOperator(M.shape, P_LU.solve)
-            print(
-                "Assembled ILU preconditioner in {:.2f} sec.".format(
-                    time.time() - start_time
-                )
-            )
+        print("TPSA: Assembled system ({:.2f} sec)".format(time.time() - start_time))
 
         if "ref_pressure" in data:
             self.ref_pressure = data["ref_pressure"]
@@ -273,7 +253,9 @@ class TPSA:
 
         return np.hstack((rhs_u, rhs_r, rhs_p))
 
-    def solve(self, data, pressure_source) -> tuple[np.ndarray]:
+    def solve(
+        self, data: dict, pressure_source: np.ndarray, solver: tpysa.Solver
+    ) -> tuple[np.ndarray]:
         diff_pressure = pressure_source - self.ref_pressure
         rhs = self.assemble_isotropic_stress_source(data, diff_pressure)
 
@@ -285,42 +267,8 @@ class TPSA:
         )
         rhs *= mu_scaling
 
-        print("")
-        start_time = time.time()
-        if self.use_direct_solver:
-            sol = self.system_LU.solve(rhs)
-            print(
-                "\nSolid mechanics: direct solve ({:.2f}sec)".format(
-                    time.time() - start_time
-                )
-            )
-        else:
-            num_it = 0
-
-            def callback(r):
-                nonlocal num_it
-                num_it += 1
-                print(
-                    "Solid mechanics: Iterate: {:3}, Prec. Res. norm: {:.2e}".format(
-                        num_it, r
-                    ),
-                    end="\r",
-                )
-
-            sol, info = sps.linalg.gmres(
-                self.system,
-                rhs,
-                rtol=1e-4,
-                M=self.precond,
-                callback=callback,
-                callback_type="pr_norm",
-            )
-            assert info == 0
-            print(
-                "\nSolid mechanics: GMRes converged in {} iterations ({:.1f}sec)".format(
-                    num_it, time.time() - start_time
-                )
-            )
+        sol, info = solver.solve(rhs)
+        assert info == 0
 
         sol *= mu_scaling
         u, r, p, _ = np.split(sol, np.cumsum(self.ndofs))

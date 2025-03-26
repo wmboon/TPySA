@@ -40,7 +40,7 @@ class FaultGrid(tpysa.Grid):
     """docstring for CartGrid."""
 
     def tag_boundaries(self):
-        super(FaultGrid, self).tag_boundaries()
+        super().tag_boundaries()
 
         # Extract the "top" faces
         bdry = self.tags["domain_boundary_faces"].copy()
