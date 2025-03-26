@@ -66,7 +66,11 @@ class TPSA:
                 )
             )
 
-        self.ref_pressure = data.get("ref_pressure", np.zeros(self.sd.num_cells))
+        if "ref_pressure" in data:
+            self.ref_pressure = data["ref_pressure"]
+        else:
+            print("WARNING: no reference pressure given")
+            self.ref_pressure = np.zeros(self.sd.num_cells)
 
     def assemble_dual_var_map(self, data: dict, mu_scaling: float = 1.0) -> sps.sparray:
         """
@@ -297,8 +301,10 @@ class TPSA:
                 nonlocal num_it
                 num_it += 1
                 print(
-                    "Iterate: {:}, Preconditioned res. norm: {:.2e}".format(num_it, r),
-                    end="/r",
+                    "Solid mechanics: Iterate: {:3}, Prec. Res. norm: {:.2e}".format(
+                        num_it, r
+                    ),
+                    end="\r",
                 )
 
             sol, info = sps.linalg.gmres(

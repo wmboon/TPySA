@@ -19,11 +19,7 @@ class Coupler:
         source *= variables["rho_w"]  # from m^3 to kg
 
         # Convert to string
-        import time
-
-        start_time = time.time()
         source_str = self.source_to_str(grid, source)
-        print("Stringing source: {:.2f} sec".format(time.time() - start_time))
 
         # Update the keyword in the schedules
         schedule.insert_keywords(source_str)

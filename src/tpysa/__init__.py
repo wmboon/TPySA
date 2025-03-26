@@ -1,6 +1,6 @@
-from tpysa.grid import Grid, CartGrid, FaultGrid
+from tpysa.grid import Grid
 from tpysa.couplers import Coupler, Lagged, Iterative
 from tpysa.TPSA import TPSA
-from tpysa.templates import generate_cart_deck, generate_faulted_deck
+from tpysa.templates import generate_deck_from_template
 from tpysa.vtk_writer import write_vtk
-from tpysa.Biot import run_poromechanics
+from tpysa.models import Biot_Model
