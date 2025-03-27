@@ -34,14 +34,14 @@ class TPSA:
         start_time = time.time()
 
         # Extract the mean of the second Lamé parameter
-        data["mu_bar"] = np.mean(data["mu"])
+        data["scaling"] = np.mean(data["mu"])
 
         # Generate the matrices from (2.13) and (3.5)
-        self.sigma = self.assemble_dual_var_map(data, mu_scaling=data["mu_bar"])
+        self.sigma = self.assemble_dual_var_map(data, scale_factor=data["scaling"])
         div = self.assemble_div()
 
         A = div @ self.sigma
-        M = self.mass(data, mu_scaling=data["mu_bar"])
+        M = self.mass(data, scale_factor=data["scaling"])
 
         self.system = sps.csc_array(A - M)
         print("TPSA: Assembled system ({:.2f} sec)".format(time.time() - start_time))
@@ -52,7 +52,9 @@ class TPSA:
             print("WARNING: no reference pressure given")
             self.ref_pressure = np.zeros(self.sd.num_cells)
 
-    def assemble_dual_var_map(self, data: dict, mu_scaling: float = 1.0) -> sps.sparray:
+    def assemble_dual_var_map(
+        self, data: dict, scale_factor: float = 1.0
+    ) -> sps.sparray:
         """
         Assemble the matrix from (3.7) that maps primary to dual variables
         """
@@ -64,11 +66,11 @@ class TPSA:
         # Assemble the blocks of (3.7) where
         # A_ij is the block coupling variable i and j.
         mu_bar = self.harmonic_avg()
-        A_uu = -2 * mu_bar[:, None] / mu_scaling * cf
+        A_uu = -2 * mu_bar[:, None] / scale_factor * cf
         A_uu = sps.block_diag([A_uu] * self.sd.dim)
 
         dk_mu = self.assemble_delta_mu_k()
-        A_pp = -dk_mu[:, None] * mu_scaling * cf
+        A_pp = -dk_mu[:, None] * scale_factor * cf
 
         Xi = self.assemble_xi()
         Xi_tilde = self.assemble_xi_tilde(Xi)
@@ -205,13 +207,13 @@ class TPSA:
         """
         return sps.block_diag([self.sd.cell_faces.T.tocsc()] * self.ndof_per_cell)
 
-    def mass(self, data: dict, mu_scaling: float = 1.0) -> sps.sparray:
+    def mass(self, data: dict, scale_factor: float = 1.0) -> sps.sparray:
         """
         The diagonal terms
         """
         M_u = sps.dia_array((self.ndofs[0], self.ndofs[0]))
-        M_r = sps.diags_array(np.tile(mu_scaling / data["mu"], self.dim_r))
-        M_p = sps.diags_array(mu_scaling / data["lambda"])
+        M_r = sps.diags_array(np.tile(scale_factor / data["mu"], self.dim_r))
+        M_p = sps.diags_array(scale_factor / data["lambda"])
 
         M = sps.block_diag([M_u, M_r, M_p])
         cell_volumes = np.tile(self.sd.cell_volumes, self.ndof_per_cell)
@@ -259,18 +261,18 @@ class TPSA:
         diff_pressure = pressure_source - self.ref_pressure
         rhs = self.assemble_isotropic_stress_source(data, diff_pressure)
 
-        mu_scaling = np.hstack(
+        scale_factor = np.hstack(
             (
-                np.full(self.ndofs[0], 1 / np.sqrt(data["mu_bar"])),
-                np.full(self.ndofs[1] + self.ndofs[2], np.sqrt(data["mu_bar"])),
+                np.full(self.ndofs[0], 1 / np.sqrt(data["scaling"])),
+                np.full(self.ndofs[1] + self.ndofs[2], np.sqrt(data["scaling"])),
             )
         )
-        rhs *= mu_scaling
+        rhs *= scale_factor
 
         sol, info = solver.solve(rhs)
         assert info == 0
 
-        sol *= mu_scaling
+        sol *= scale_factor
         u, r, p, _ = np.split(sol, np.cumsum(self.ndofs))
 
         return u, r, p

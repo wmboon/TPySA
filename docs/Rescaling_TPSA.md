@@ -1,4 +1,4 @@
-## Rescaling TPSA
+## Rescaling by material parameters
 
 The TPSA discretization of linearized elasticity discretizes the system:
 
@@ -27,6 +27,7 @@ $$
 $$
 
 The Lamé parameters are typically on the order of $10^{10}$ in SI units, which yields a terribly scaled matrix. We therefore look into a rescaling of the equations and variables:
+
 $$
 \begin{align}
     u^* &= \tilde \mu^{\frac12} u, &
@@ -34,7 +35,9 @@ $$
     p^* &= \tilde \mu^{-\frac12} p
 \end{align}
 $$
+
 where $\tilde \mu$ is a representative value for $\mu$ (we take the mean). Multiplying left and right with appropriate scaling matrices, we obtain
+
 $$
 \begin{align}
     \begin{bmatrix}
@@ -94,6 +97,7 @@ $$
 $$
 
 This is the matrix that is implemented in the `TPySA` code. Note that this implies that the solution needs to be rescaled as:
+
 $$
 \begin{bmatrix}
     u \\\ r \\\ p_s

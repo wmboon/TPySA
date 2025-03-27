@@ -1,5 +1,8 @@
 import os
 from opm.simulators import GasWaterSimulator
+import time
+import numpy as np
+import scipy.sparse.linalg as spla
 import tpysa
 
 
@@ -20,9 +23,39 @@ def main():
     opmcase = os.path.join(dir_name, case_str)
 
     model = tpysa.Biot_Model(
-        opmcase, data, save_to_vtk, SimulatorType=GasWaterSimulator, CouplerType=coupler
+        opmcase,
+        data,
+        save_to_vtk,
+        SimulatorType=GasWaterSimulator,
+        CouplerType=coupler,
+        SolverType=HighTolSolver,
     )
     model.simulate()
+
+
+class HighTolSolver(tpysa.AMGSolver):
+    def solve(self, rhs: np.ndarray) -> tuple:
+        start_time = time.time()
+
+        num_it = 0
+
+        def callback(_):
+            nonlocal num_it
+            num_it += 1
+            print("BiCGStab: Iterate {:3}".format(num_it), end="\r")
+
+        sol, info = spla.bicgstab(
+            self.system,
+            rhs,
+            rtol=1e-3,
+            M=self.precond,
+            callback=callback,
+        )
+        self.report_time(
+            "BiCGStab converged in {} iterations".format(num_it), start_time
+        )
+
+        return sol, info
 
 
 if __name__ == "__main__":

@@ -148,12 +148,14 @@ class Biot_Model:
             vol_change = self.disc.recover_volumetric_change(
                 solid_p, fluid_p, self.data
             )
+            diff_p = fluid_p - self.data["ref_pressure"]
             sol_dict = {
                 "pressure_fluid": fluid_p,
                 "pressure_solid": solid_p,
                 "displacement": displ,
                 "rotation": rotat,
                 "vol_change": vol_change,
+                "pressure_diff": diff_p,
             }
             tpysa.write_vtk(self.grid, sol_dict, self.opmcase, current_step)
 

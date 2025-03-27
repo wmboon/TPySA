@@ -20,7 +20,12 @@ def main():
     opmcase = os.path.join(dir_name, case_str)
 
     model = tpysa.Biot_Model(
-        opmcase, data, save_to_vtk, SimulatorType=GasWaterSimulator, CouplerType=coupler
+        opmcase,
+        data,
+        save_to_vtk,
+        SimulatorType=GasWaterSimulator,
+        CouplerType=coupler,
+        SolverType=tpysa.AMGSolver,
     )
     model.simulate()
 

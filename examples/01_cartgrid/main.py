@@ -23,7 +23,13 @@ def main(nx=10):
     dir_name = os.path.dirname(__file__)
     opmcase = os.path.join(dir_name, case_str)
 
-    model = CartBiot_Model(opmcase, data, save_to_vtk, CartGrid, CouplerType=coupler)
+    model = CartBiot_Model(
+        opmcase,
+        data,
+        save_to_vtk,
+        CartGrid,
+        CouplerType=coupler,
+    )
     model.simulate()
 
 
