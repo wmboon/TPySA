@@ -71,7 +71,7 @@ $$
         \tilde \mu^{\frac12} f_r \\\ 
         \tilde \mu^{\frac12}f_p
     \end{bmatrix}
- \\\
+    \\\
     \left(
     \nabla \cdot 
     \begin{bmatrix}
@@ -99,16 +99,18 @@ $$
 This is the matrix that is implemented in the `TPySA` code. Note that this implies that the solution needs to be rescaled as:
 
 $$
-\begin{bmatrix}
-    u \\\ r \\\ p_s
-\end{bmatrix}
-= 
-\begin{bmatrix}
-    \tilde \mu^{-\frac12} \\\
-    & \tilde \mu^{\frac12} \\\
-    & & \tilde \mu^{\frac12} 
-\end{bmatrix}
+\begin{align}
+    \begin{bmatrix}
+        u \\\ r \\\ p_s
+    \end{bmatrix}
+    = 
+    \begin{bmatrix}
+        \tilde \mu^{-\frac12} \\\
+        & \tilde \mu^{\frac12} \\\
+        & & \tilde \mu^{\frac12} 
+    \end{bmatrix}
     \begin{bmatrix}
         u^* \\\ r^* \\\ p_s^*
     \end{bmatrix}
+\end{align}
 $$
