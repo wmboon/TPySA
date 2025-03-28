@@ -75,7 +75,7 @@ class Biot_Model:
             if self.disc.ndofs.sum() <= 1e5:
                 self.SolverType = tpysa.DirectSolver
             else:
-                self.SolverType = tpysa.ILUSolver
+                self.SolverType = tpysa.AMGSolver
         self.solver = self.SolverType(self.disc.system)
 
         ## Choose coupling scheme
@@ -167,13 +167,14 @@ class Biot_Model:
         assert isinstance(self.data["rock_biot"], np.ScalarType)
 
     def manage_data(self, num_cells: int):
+        """
+        Ensure the data entries are cell-wise
+        """
         data = self.data
 
         for key in ["lambda", "mu", "alpha"]:
             if isinstance(data[key], np.ScalarType):
-                data[key] = np.full(
-                    num_cells, data[key]
-                )  # Ensure the data entries are cell-wise
+                data[key] = np.full(num_cells, data[key])
 
     def generate_deck(self):
         dir_name, deck_name = os.path.split(self.deck_file)

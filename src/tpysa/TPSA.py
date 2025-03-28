@@ -33,18 +33,25 @@ class TPSA:
         """
         start_time = time.time()
 
-        # Extract the mean of the second Lamé parameter
+        # TODO: See if we can find a proper scaling with mu/h.
+        # For now, we use the mean of mu
+        self.mu_delta_ki = self.assemble_mu_delta_ki(data["mu"])
         data["scaling"] = np.mean(data["mu"])
 
         # Generate the matrices from (2.13) and (3.5)
-        self.sigma = self.assemble_dual_var_map(data, scale_factor=data["scaling"])
+        self.sigma = self.assemble_dual_var_map(scale_factor=data["scaling"])
         div = self.assemble_div()
 
         A = div @ self.sigma
         M = self.mass(data, scale_factor=data["scaling"])
 
         self.system = sps.csc_array(A - M)
-        print("TPSA: Assembled system ({:.2f} sec)".format(time.time() - start_time))
+        print(
+            "TPSA: Assembled system with {:} dof ({:.2f} sec)".format(
+                self.system.shape[0],
+                time.time() - start_time,
+            )
+        )
 
         if "ref_pressure" in data:
             self.ref_pressure = data["ref_pressure"]
@@ -52,16 +59,12 @@ class TPSA:
             print("WARNING: no reference pressure given")
             self.ref_pressure = np.zeros(self.sd.num_cells)
 
-    def assemble_dual_var_map(
-        self, data: dict, scale_factor: float = 1.0
-    ) -> sps.sparray:
+    def assemble_dual_var_map(self, scale_factor: float = 1.0) -> sps.sparray:
         """
         Assemble the matrix from (3.7) that maps primary to dual variables
         """
         # Extract cell-face pairs
         cf = sps.csc_array(self.sd.cell_faces)
-
-        self.mu_delta_ki = self.assemble_mu_delta_ki(data["mu"])
 
         # Assemble the blocks of (3.7) where
         # A_ij is the block coupling variable i and j.

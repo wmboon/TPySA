@@ -1,17 +1,14 @@
 import os
 from opm.simulators import GasWaterSimulator
-import time
-import numpy as np
-import scipy.sparse.linalg as spla
 import tpysa
 
 
 def main():
     ## Input: Model and discretization parameters
     data = {
-        "mu": 1e10,  # 10 GPa
-        "lambda": 1e10,  # 10 GPa
-        "alpha": 1,  # O(1)
+        "mu": 3.5e9,  # 3.5 GPa
+        "lambda": 4e9,  # 4.0 GPa
+        "alpha": 0.87,  # O(1)
         "n_total_cells": 46 * 73 * 31,
     }
 
@@ -28,34 +25,8 @@ def main():
         save_to_vtk,
         SimulatorType=GasWaterSimulator,
         CouplerType=coupler,
-        SolverType=HighTolSolver,
     )
     model.simulate()
-
-
-class HighTolSolver(tpysa.AMGSolver):
-    def solve(self, rhs: np.ndarray) -> tuple:
-        start_time = time.time()
-
-        num_it = 0
-
-        def callback(_):
-            nonlocal num_it
-            num_it += 1
-            print("BiCGStab: Iterate {:3}".format(num_it), end="\r")
-
-        sol, info = spla.bicgstab(
-            self.system,
-            rhs,
-            rtol=1e-3,
-            M=self.precond,
-            callback=callback,
-        )
-        self.report_time(
-            "BiCGStab converged in {} iterations".format(num_it), start_time
-        )
-
-        return sol, info
 
 
 if __name__ == "__main__":

@@ -6,8 +6,8 @@ import pyamg
 
 
 class Solver:
-    def report_time(self, output, start_time):
-        print("TPSA: {} ({:.2f} sec)".format(output, time.time() - start_time))
+    def report_time(self, report: str, start_time: float):
+        print("TPSA: {} ({:.2f} sec)".format(report, time.time() - start_time))
 
     def solve(self, rhs: np.ndarray) -> tuple:
         return rhs, 1
@@ -16,7 +16,7 @@ class Solver:
 class DirectSolver(Solver):
     def __init__(self, system: sps.sparray):
         start_time = time.time()
-        self.system_LU = spla.splu(system.system)
+        self.system_LU = spla.splu(system)
         self.report_time("LU-factorization", start_time)
 
     def solve(self, rhs: np.ndarray) -> tuple:
@@ -130,6 +130,7 @@ class AMGSolver(Solver):
         sol, info = spla.bicgstab(
             self.system,
             rhs,
+            rtol=5e-3,
             M=self.precond,
             callback=callback,
         )

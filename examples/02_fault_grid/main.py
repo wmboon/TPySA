@@ -7,9 +7,9 @@ import tpysa
 def main():
     ## Input: Model and discretization parameters
     data = {
-        "mu": 1e10,  # 10 GPa
-        "lambda": 1e12,  # 100 GPa
-        "alpha": 1,  # O(1)
+        "mu": 3.5e9,  # 3.5 GPa
+        "lambda": 4e9,  # 4.0 GPa
+        "alpha": 0.87,  # O(1)
         "inj_rate": 1e3,  # sm3/day
         "n_time": 30,
         "n_total_cells": 20 * 15 * 9,
