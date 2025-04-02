@@ -130,7 +130,7 @@ class AMGSolver(Solver):
         sol, info = spla.bicgstab(
             self.system,
             rhs,
-            rtol=5e-3,
+            rtol=1e-3,
             M=self.precond,
             callback=callback,
         )

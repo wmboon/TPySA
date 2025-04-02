@@ -6,6 +6,7 @@ from opm.io.parser import Parser
 from opm.io.ecl_state import EclipseState
 from opm.io.schedule import Schedule
 from opm.io.summary import SummaryConfig
+from opm.util import EModel
 
 import tpysa
 
@@ -43,19 +44,34 @@ class Biot_Model:
         self.generate_deck()
         deck = Parser().parse(self.deck_file)
 
+        output_dir = os.path.join(os.path.dirname(self.deck_file), "solution")
+
         ## Initialize flow simulator
         state = EclipseState(deck)
         self.schedule = Schedule(deck, state)
         summary_config = SummaryConfig(deck, state, self.schedule)
-        self.sim = self.SimulatorType(deck, state, self.schedule, summary_config)
+        self.sim = self.SimulatorType(
+            deck,
+            state,
+            self.schedule,
+            summary_config,
+            args=["--output-dir={}".format(output_dir)],
+        )
 
         self.operate_wells(self.schedule)
 
         ## Extract grid
-        self.sim.step_init()  # Creates the EGRID file
+        self.sim.step_init()  # Creates the EGRID and INIT files
 
-        egrid_file = "{}.EGRID".format(self.opmcase)
+        case_name = os.path.basename(self.opmcase)
+
+        egrid_file = os.path.join(output_dir, "{}.EGRID".format(case_name))
         self.grid = self.GridType(egrid_file)
+
+        ## Extract Emodel
+        init_file = os.path.join(output_dir, "{}.INIT".format(case_name))
+        self.emodel = EModel(init_file)
+        self.data["FIPNUM"] = self.emodel.get("FIPNUM")
 
         # Double check that ROCKBIOT is inserted appropriately
         field_props = state.field_props()
@@ -156,6 +172,7 @@ class Biot_Model:
                 "rotation": rotat,
                 "vol_change": vol_change,
                 "pressure_diff": diff_p,
+                "FIPNUM": self.data["FIPNUM"],
             }
             tpysa.write_vtk(self.grid, sol_dict, self.opmcase, current_step)
 

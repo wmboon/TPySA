@@ -25,7 +25,6 @@ def main():
         save_to_vtk,
         SimulatorType=GasWaterSimulator,
         CouplerType=coupler,
-        SolverType=tpysa.AMGSolver,
     )
     model.simulate()
 
