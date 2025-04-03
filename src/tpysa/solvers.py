@@ -72,43 +72,42 @@ class AMGSolver(Solver):
         self.ndofs = [3 * num_cells, 3 * num_cells]
 
         # Displacement preconditioner
-        restriction_u = sps.eye_array(num_cells, ndof)
-        laplace = sps.csr_matrix(restriction_u @ self.system @ restriction_u.T)
-
-        laplace.indices = laplace.indices.astype(np.int32)
-        laplace.indptr = laplace.indptr.astype(np.int32)
-
-        amg_u = pyamg.smoothed_aggregation_solver(laplace)
-        precond_u = amg_u.aspreconditioner(cycle="V")
+        u_x_slice = slice(0, num_cells)
+        precond_u = self.assemble_AMG_preconditioner(u_x_slice)
 
         # Rotation preconditioner
-        restriction_r = sps.diags_array(
-            np.ones(num_cells), offsets=self.ndofs[0], shape=(restriction_u.shape)
-        )
+        r_x_slice = slice(self.ndofs[0], self.ndofs[0] + num_cells)
+        restriction_r = self.create_restriction(r_x_slice)
         mass_r = restriction_r @ self.system @ restriction_r.T
         precond_r = mass_r.data
 
         # Pressure preconditioner
-        restriction_p = sps.diags_array(
-            np.ones(num_cells), offsets=2 * self.ndofs[0], shape=(restriction_u.shape)
-        )
-        laplace_p = sps.csr_matrix(restriction_p @ self.system @ restriction_p.T)
+        p_slice = slice(6 * num_cells, None)
+        precond_p = self.assemble_AMG_preconditioner(p_slice)
 
-        laplace_p.indices = laplace_p.indices.astype(np.int32)
-        laplace_p.indptr = laplace_p.indptr.astype(np.int32)
-
-        amg_p = pyamg.smoothed_aggregation_solver(laplace_p)
-        precond_p = amg_p.aspreconditioner(cycle="V")
+        # Off-diagonal blocks
+        col_restriction = self.create_restriction(slice(0, self.ndofs[0]))
+        row_restriction = self.create_restriction(slice(self.ndofs[0], None))
+        A_10 = row_restriction @ self.system @ col_restriction.T
 
         # Combining the preconditioners
         def precond_func(res: np.ndarray):
-            u, r, p = np.split(res, np.cumsum(self.ndofs))
+            u, r, p = np.split(res.astype(float), np.cumsum(self.ndofs))
 
-            u = res[: self.ndofs[0]].reshape((-1, 3), order="F")
+            # Apply AMG to the different components of u
+            u = u.reshape((-1, 3), order="F")
             u = precond_u.matmat(u).ravel(order="F")
 
+            # Compute the update to the residuals of r and p
+            r_delta, p_delta = np.split(A_10 @ u, [len(r)])
+
+            # Update the rotation residual and solve using the diagonal
+            r -= r_delta
             r = r.reshape((-1, 3), order="F") / precond_r[:, None]
             r = r.ravel(order="F")
+
+            # Update the pressure residual and solve using AMG
+            p -= p_delta
             p = precond_p.matvec(p)
 
             return np.hstack((u, r, p))
@@ -116,6 +115,20 @@ class AMGSolver(Solver):
         self.precond = spla.LinearOperator(self.system.shape, precond_func)
 
         self.report_time("AMG-initialization", start_time)
+
+    def assemble_AMG_preconditioner(self, indices: slice):
+        restriction = self.create_restriction(indices)
+        laplace = sps.csr_matrix(restriction @ self.system @ restriction.T)
+
+        laplace.indices = laplace.indices.astype(np.int32)
+        laplace.indptr = laplace.indptr.astype(np.int32)
+
+        amg_u = pyamg.smoothed_aggregation_solver(laplace)
+        return amg_u.aspreconditioner()
+
+    def create_restriction(self, indices: slice):
+        eye = sps.eye_array(*self.system.shape, format="csr")
+        return eye[indices]
 
     def solve(self, rhs: np.ndarray) -> tuple:
         start_time = time.time()
