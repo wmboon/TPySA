@@ -10,10 +10,10 @@ def main():
         "lambda": 4e9,  # 4.0 GPa
         "alpha": 0.87,  # O(1)
         "n_total_cells": 46 * 112 * 22,
+        "vtk_writer": "Python",  # First run with "OPM", then "Python"
     }
 
     coupler = tpysa.Lagged
-    save_to_vtk = True
 
     case_str = "NORNE"
     dir_name = os.path.dirname(__file__)
@@ -22,7 +22,6 @@ def main():
     model = tpysa.Biot_Model(
         opmcase,
         data,
-        save_to_vtk,
         SimulatorType=GasWaterSimulator,
         CouplerType=coupler,
     )

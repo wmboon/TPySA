@@ -16,7 +16,6 @@ class Biot_Model:
         self,
         opmcase: str,
         data: dict,
-        save_to_vtk: bool = False,
         GridType=tpysa.Grid,
         SimulatorType=BlackOilSimulator,
         SolverType=None,
@@ -26,11 +25,13 @@ class Biot_Model:
         self.deck_file = "{}.DATA".format(self.opmcase)
 
         self.data = data
-        self.save_to_vtk = save_to_vtk
         self.GridType = GridType
         self.SimulatorType = SimulatorType
         self.SolverType = SolverType
         self.CouplerType = CouplerType
+
+        vtk_flag = self.data.get("vtk_writer", "Python")
+        self.py_write_vtk = vtk_flag == "Python"
 
     def simulate(self):
         self.initialize()
@@ -44,7 +45,11 @@ class Biot_Model:
         self.generate_deck()
         deck = Parser().parse(self.deck_file)
 
+        # Create the folder for the solution if it does not exist
         output_dir = os.path.join(os.path.dirname(self.deck_file), "solution")
+        if not os.path.isdir(output_dir):
+            os.mkdir(output_dir)
+            self.py_write_vtk = 0
 
         ## Initialize flow simulator
         state = EclipseState(deck)
@@ -55,7 +60,10 @@ class Biot_Model:
             state,
             self.schedule,
             summary_config,
-            args=["--output-dir={}".format(output_dir)],
+            args=[
+                "--enable-vtk-output={}".format(1 - self.py_write_vtk),
+                "--output-dir={}".format(output_dir),
+            ],
         )
 
         self.operate_wells(self.schedule)
@@ -88,7 +96,7 @@ class Biot_Model:
 
         ## Choose Solver
         if self.SolverType is None:
-            if self.disc.ndofs.sum() <= 1e5:
+            if self.disc.ndofs.sum() <= 1e4:
                 self.SolverType = tpysa.DirectSolver
             else:
                 self.SolverType = tpysa.AMGSolver
@@ -158,7 +166,7 @@ class Biot_Model:
         rotat: np.ndarray,
         solid_p: np.ndarray,
     ):
-        if not self.write_vtk:
+        if not self.py_write_vtk:
             return
         else:
             vol_change = self.disc.recover_volumetric_change(

@@ -13,15 +13,15 @@ def main():
         "inj_rate": 1e3,  # sm3/day
         "n_time": 30,
         "n_total_cells": 20 * 15 * 9,
+        "vtk_writer": "Python",  # First run with "OPM", then "Python"
     }
     coupler = tpysa.Lagged
-    save_to_vtk = True
 
     case_str = "FAULT"
     dir_name = os.path.dirname(__file__)
     opmcase = os.path.join(dir_name, case_str)
 
-    model = FaultBiot_Model(opmcase, data, save_to_vtk, FaultGrid, CouplerType=coupler)
+    model = FaultBiot_Model(opmcase, data, FaultGrid, CouplerType=coupler)
     model.simulate()
 
 

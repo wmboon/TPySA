@@ -10,10 +10,11 @@ def main():
         "lambda": 4e9,  # 4.0 GPa
         "alpha": 0.87,  # O(1)
         "n_total_cells": 46 * 73 * 31,
+        "rtol": 1e-3,  # Relative residual tolerance for the iterative solver
+        "vtk_writer": "Python",  # First run with "OPM", then "Python"
     }
 
     coupler = tpysa.Lagged
-    save_to_vtk = True
 
     case_str = "DROGON"
     dir_name = os.path.dirname(__file__)
@@ -22,7 +23,6 @@ def main():
     model = tpysa.Biot_Model(
         opmcase,
         data,
-        save_to_vtk,
         SimulatorType=GasWaterSimulator,
         CouplerType=coupler,
     )

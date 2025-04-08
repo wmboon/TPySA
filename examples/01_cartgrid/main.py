@@ -14,9 +14,9 @@ def main(nx=10):
         "nx": nx,
         "n_time": 50,
         "n_total_cells": nx**3,
+        "vtk_writer": "Python",  # First run with "OPM", then "Python"
     }
     coupler = tpysa.Lagged
-    save_to_vtk = True
 
     ## Create a n x n x n Cartesian grid
     case_str = "GRID_" + str(nx)
@@ -26,7 +26,6 @@ def main(nx=10):
     model = CartBiot_Model(
         opmcase,
         data,
-        save_to_vtk,
         CartGrid,
         CouplerType=coupler,
     )
