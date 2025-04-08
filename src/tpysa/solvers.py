@@ -9,7 +9,7 @@ class Solver:
     def report_time(self, report: str, start_time: float):
         print("TPSA: {} ({:.2f} sec)".format(report, time.time() - start_time))
 
-    def solve(self, rhs: np.ndarray) -> tuple:
+    def solve(self, rhs: np.ndarray, **kwargs) -> tuple:
         return rhs, 1
 
 
@@ -19,7 +19,7 @@ class DirectSolver(Solver):
         self.system_LU = spla.splu(system)
         self.report_time("LU-factorization", start_time)
 
-    def solve(self, rhs: np.ndarray) -> tuple:
+    def solve(self, rhs: np.ndarray, **kwargs) -> tuple:
         start_time = time.time()
         sol = self.system_LU.solve(rhs)
         self.report_time("Direct solve", start_time)
@@ -36,7 +36,7 @@ class ILUSolver(Solver):
         self.precond = spla.LinearOperator(self.system.shape, P_LU.solve)
         self.report_time("ILU-factorization", start_time)
 
-    def solve(self, rhs: np.ndarray) -> tuple:
+    def solve(self, rhs: np.ndarray, rtol: float = 1e-5) -> tuple:
         start_time = time.time()
 
         num_it = 0
@@ -52,6 +52,7 @@ class ILUSolver(Solver):
         sol, info = spla.gmres(
             self.system,
             rhs,
+            rtol=rtol,
             M=self.precond,
             callback=callback,
             callback_type="pr_norm",
@@ -130,25 +131,32 @@ class AMGSolver(Solver):
         eye = sps.eye_array(*self.system.shape, format="csr")
         return eye[indices]
 
-    def solve(self, rhs: np.ndarray) -> tuple:
+    def solve(self, rhs: np.ndarray, rtol: float = 1e-5) -> tuple:
         start_time = time.time()
 
         num_it = 0
+        norm_rhs = np.linalg.norm(rhs)
 
-        def callback(_):
+        def callback(x):
             nonlocal num_it
             num_it += 1
-            print("BiCGStab: Iterate {:3}".format(num_it), end="\r")
+            res = np.linalg.norm(rhs - self.system @ x) / norm_rhs
+            print(
+                "BiCGStab: Iterate {:3}, Residual: {:.2e}".format(num_it, res), end="\r"
+            )
 
         sol, info = spla.bicgstab(
             self.system,
             rhs,
-            rtol=1e-3,
+            rtol=rtol,
             M=self.precond,
             callback=callback,
         )
         self.report_time(
-            "BiCGStab converged in {} iterations".format(num_it), start_time
+            "BiCGStab converged in {} iterations to an accuracy of {:.0e}".format(
+                num_it, rtol
+            ),
+            start_time,
         )
 
         return sol, info
