@@ -11,9 +11,15 @@
 *.UNRST
 *.UNSMRY
 *.eps
-darts_example.py
 src/tpysa.egg-info/*
 *.EGRID
 *.INIT
 *.npz
 examples/**/*.DATA
+*.INC
+*.GRDECL
+animations/*
+snippets/*
+examples/05_troll_5/*
+examples/06_troll_open/*
+examples/07_troll_full/*
