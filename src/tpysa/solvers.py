@@ -135,10 +135,11 @@ class AMGSolver(Solver):
         start_time = time.time()
 
         num_it = 0
+        res = 0.0
         norm_rhs = np.linalg.norm(rhs)
 
         def callback(x):
-            nonlocal num_it
+            nonlocal num_it, res
             num_it += 1
             res = np.linalg.norm(rhs - self.system @ x) / norm_rhs
             print(
@@ -154,7 +155,7 @@ class AMGSolver(Solver):
         )
         self.report_time(
             "BiCGStab converged in {} iterations to an accuracy of {:.0e}".format(
-                num_it, rtol
+                num_it, res
             ),
             start_time,
         )

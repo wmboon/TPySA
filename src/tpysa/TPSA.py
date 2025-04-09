@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.sparse as sps
 import time
+import warnings
 import tpysa
 
 
@@ -21,7 +22,8 @@ class TPSA:
         self.ndofs = grid.num_cells * np.array([grid.dim, self.dim_r, 1])
 
         # Save the unit normal vectors
-        self.unit_normals = self.sd.face_normals / self.sd.face_areas
+        normal_norms = np.linalg.norm(self.sd.face_normals, axis=0)
+        self.unit_normals = self.sd.face_normals / normal_norms
 
         # Save the cell_face connectivity
         self.find_cf = sps.find(self.sd.cell_faces)
@@ -56,7 +58,7 @@ class TPSA:
         if "ref_pressure" in data:
             self.ref_pressure = data["ref_pressure"]
         else:
-            print("WARNING: no reference pressure given")
+            warnings.warn("No reference pressure given.")
             self.ref_pressure = np.zeros(self.sd.num_cells)
 
     def assemble_dual_var_map(self, scale_factor: float = 1.0) -> sps.sparray:
@@ -104,13 +106,46 @@ class TPSA:
         Compute mu / delta_k^i from (1.12) for every face-cell pair
         """
         faces, cells, orient = self.find_cf
-        delta_ki = np.sum(
-            (
-                (self.sd.face_centers[:, faces] - self.sd.cell_centers[:, cells])
-                * (orient * self.unit_normals[:, faces])
-            ),
-            axis=0,
-        )
+
+        def compute_delta_ki(indices=slice(None)):
+            return np.sum(
+                (
+                    (
+                        self.sd.face_centers[:, faces[indices]]
+                        - self.sd.cell_centers[:, cells[indices]]
+                    )
+                    * (orient[indices] * self.unit_normals[:, faces[indices]])
+                ),
+                axis=0,
+            )
+
+        delta_ki = compute_delta_ki()
+
+        if np.any(delta_ki < 0):
+            for cell in cells[delta_ki <= 0]:
+                cf_pairs = cells == cell
+
+                # Define a cell-center based on the mean of the 8 nodes
+                xyz = self.sd.xyz_from_active_index(cell)
+                self.sd.cell_centers[:, cell] = np.mean(xyz, axis=1)
+
+                # Recompute the deltas with the updated cell center
+                delta_ki[cf_pairs] = compute_delta_ki(cf_pairs)
+
+        if np.any(delta_ki < 0):
+            warnings.warn(
+                "There are {} extra-cellular cell centers".format(np.sum(delta_ki < 0))
+            )
+            first_cell = cells[np.argmax(delta_ki <= 0)]
+            ijk = self.sd.ijk_from_active_index(first_cell)
+            glob_ind = self.sd.global_index(*ijk)
+
+            print(
+                "Cell with global index {} has an extra-cellular center.".format(
+                    glob_ind
+                )
+            )
+
         return mu[cells] / delta_ki
 
     def harmonic_avg(self) -> np.ndarray:
@@ -272,7 +307,8 @@ class TPSA:
         )
         rhs *= scale_factor
 
-        sol, info = solver.solve(rhs)
+        rtol = data.get("rtol", 1e-5)
+        sol, info = solver.solve(rhs, rtol=rtol)
         assert info == 0
 
         sol *= scale_factor

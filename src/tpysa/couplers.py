@@ -1,5 +1,5 @@
 import numpy as np
-
+import warnings
 from opm.io.ecl import EGrid
 from opm.io.schedule import Schedule
 
@@ -60,7 +60,7 @@ class Iterative(Coupler):
         try:
             self.source = np.load(self.sources_file)["source"]
         except Exception:
-            print("Warning: No source file found")
+            warnings.warn("No source file found")
             self.source = np.zeros((n_time, n_space))
 
         if self.source.shape != (n_time, n_space):
