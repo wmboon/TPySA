@@ -41,10 +41,7 @@ class TPSA:
         data["scaling"] = np.mean(data["mu"])
 
         # Generate the matrices from (2.13) and (3.5)
-        self.sigma = self.assemble_dual_var_map(scale_factor=data["scaling"])
-        div = self.assemble_div()
-
-        A = div @ self.sigma
+        A = self.assemble_second_order_terms(scale_factor=data["scaling"])
         M = self.mass(data, scale_factor=data["scaling"])
 
         self.system = sps.csc_array(A - M)
@@ -60,6 +57,40 @@ class TPSA:
         else:
             warnings.warn("No reference pressure given.")
             self.ref_pressure = np.zeros(self.sd.num_cells)
+
+    def assemble_second_order_terms(self, scale_factor: float = 1.0) -> sps.sparray:
+        """
+        Assemble the matrix from (3.7) that maps primary to dual variables
+        """
+        # Extract cell-face pairs
+        div = sps.csc_array(self.sd.cell_faces.T)
+        areas = self.sd.face_areas
+
+        # Assemble the blocks of (3.7) where
+        # A_ij is the block coupling variable i and j.
+        mu_bar = self.harmonic_avg()
+        A_uu = -2 * div * (areas * mu_bar / scale_factor) @ div.T
+        A_uu = sps.block_diag([A_uu] * self.sd.dim)
+
+        Xi = self.assemble_xi()
+        A_ru = self.assemble_R_Xi(Xi, True, div * areas)
+        A_pu = self.assemble_n_Xi(Xi, True, div * areas)
+
+        Xi_tilde = self.assemble_xi_tilde(Xi)
+        A_ur = self.assemble_R_Xi(Xi_tilde, False, div * areas)
+        A_up = self.assemble_n_Xi(Xi_tilde, False, div * areas)
+
+        dk_mu = self.assemble_delta_mu_k()
+        A_pp = -div * (areas * dk_mu * scale_factor) @ div.T
+
+        # Assembly by blocks
+        # fmt: off
+        return sps.block_array(
+            [[A_uu, A_ur, A_up], 
+             [A_ru, None, None], 
+             [A_pu, None, A_pp]]
+        )
+        # fmt: on
 
     def assemble_dual_var_map(self, scale_factor: float = 1.0) -> sps.sparray:
         """
@@ -206,37 +237,63 @@ class TPSA:
 
         return Xi_tilde
 
-    def assemble_R_Xi(self, Xi: sps.sparray, u_to_r: bool = True) -> sps.sparray:
+    def assemble_R_Xi(
+        self,
+        Xi: sps.sparray,
+        u_to_r: bool = True,
+        div=None,
+    ) -> sps.sparray:
         """
         Compute the adjoint of the asymmetry operator, acting on Xi
         """
-        nx, ny, nz = [n_i[:, None] * Xi for n_i in self.unit_normals]
+        if div is None:
+            nx, ny, nz = [n_i[:, None] * Xi for n_i in self.unit_normals]
 
-        if self.sd.dim == 3:
+            if self.sd.dim == 3:
+                return -sps.block_array(
+                    [
+                        [None, -nz, ny],
+                        [nz, None, -nx],
+                        [-ny, nx, None],
+                    ]
+                )
+            elif self.sd.dim == 2:
+                if u_to_r:  # Maps from u to r
+                    return -sps.hstack([-ny, nx])
+                else:  # Maps from r to u
+                    return -sps.vstack([ny, -nx])
+            else:
+                raise NotImplementedError("Dimension must be 2 or 3.")
+        else:
+
+            def n(x: int):
+                return (div * self.unit_normals[x]) @ Xi
+
             return -sps.block_array(
                 [
-                    [None, -nz, ny],
-                    [nz, None, -nx],
-                    [-ny, nx, None],
+                    [None, -n(2), n(1)],
+                    [n(2), None, -n(0)],
+                    [-n(1), n(0), None],
                 ]
             )
-        elif self.sd.dim == 2:
-            if u_to_r:  # Maps from u to r
-                return -sps.hstack([-ny, nx])
-            else:  # Maps from r to u
-                return -sps.vstack([ny, -nx])
-        else:
-            raise NotImplementedError("Dimension must be 2 or 3.")
 
-    def assemble_n_Xi(self, Xi: sps.sparray, u_to_p: bool = True) -> sps.sparray:
+    def assemble_n_Xi(
+        self,
+        Xi: sps.sparray,
+        u_to_p: bool = True,
+        div=None,
+    ) -> sps.sparray:
         """
         Normal times the averaging operator Xi
         """
-        normal_times_xi = [n_i[:, None] * Xi for n_i in self.unit_normals]
+        if div is None:
+            normal_times_xi = [n_i[:, None] * Xi for n_i in self.unit_normals]
+        else:
+            normal_times_xi = [div @ (n_i[:, None] * Xi) for n_i in self.unit_normals]
 
         if u_to_p:
             return sps.hstack(normal_times_xi[: self.sd.dim])
-        else:  # Maps from r to u
+        else:  # Maps from p to u
             return sps.vstack(normal_times_xi[: self.sd.dim])
 
     def assemble_div(self) -> sps.sparray:
@@ -249,14 +306,14 @@ class TPSA:
         """
         The diagonal terms
         """
+        volumes = self.sd.cell_volumes
         M_u = sps.dia_array((self.ndofs[0], self.ndofs[0]))
-        M_r = sps.diags_array(np.tile(scale_factor / data["mu"], self.dim_r))
-        M_p = sps.diags_array(scale_factor / data["lambda"])
+        M_r = sps.diags_array(np.tile(scale_factor * volumes / data["mu"], self.dim_r))
+        M_p = sps.diags_array(scale_factor * volumes / data["lambda"])
 
         M = sps.block_diag([M_u, M_r, M_p])
-        cell_volumes = np.tile(self.sd.cell_volumes, self.ndof_per_cell)
 
-        return cell_volumes[:, None] * M
+        return M
 
     def assemble_isotropic_stress_source(self, data: dict, w: np.ndarray) -> np.ndarray:
         """

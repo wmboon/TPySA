@@ -142,9 +142,7 @@ class AMGSolver(Solver):
             nonlocal num_it, res
             num_it += 1
             res = np.linalg.norm(rhs - self.system @ x) / norm_rhs
-            print(
-                "BiCGStab: Iterate {:3}, Residual: {:.2e}".format(num_it, res), end="\r"
-            )
+            print("BiCGStab: Iterate {:3}, Residual: {:.2e}".format(num_it, res))
 
         sol, info = spla.bicgstab(
             self.system,
