@@ -3,11 +3,13 @@ import scipy.sparse as sps
 import scipy.sparse.linalg as spla
 import time
 import pyamg
+import logging
 
 
 class Solver:
     def report_time(self, report: str, start_time: float):
-        print("TPSA: {} ({:.2f} sec)".format(report, time.time() - start_time))
+        report = "{} ({:.2f} sec)".format(report, time.time() - start_time)
+        logging.info(report)
 
     def solve(self, rhs: np.ndarray, **kwargs) -> tuple:
         return rhs, 1
@@ -42,14 +44,13 @@ class ILUSolver(Solver):
         num_it = 0
         res = 0
 
+        logging.debug("GMRes:\nIter  Residual")
+
         def callback(r):
             nonlocal num_it, res
             num_it += 1
             res = r
-            print(
-                "GMRes: Iterate {:3}, Prec. Res. norm: {:.2e}".format(num_it, r),
-                file=self.output_file,
-            )
+            logging.debug("{:4}  {:.2e}".format(num_it, res))
 
         sol, info = spla.gmres(
             self.system,
@@ -122,7 +123,7 @@ class AMGSolver(Solver):
 
         self.precond = spla.LinearOperator(self.system.shape, precond_func)
 
-        self.report_time("AMG-initialization", start_time)
+        self.report_time("Initialized AMG", start_time)
 
     def assemble_AMG_preconditioner(self, indices: slice):
         restriction = self.create_restriction(indices)
@@ -145,11 +146,13 @@ class AMGSolver(Solver):
         res = 0.0
         norm_rhs = np.linalg.norm(rhs)
 
+        logging.debug("BiCGStab:\nIter  Residual")
+
         def callback(x):
             nonlocal num_it, res
             num_it += 1
             res = np.linalg.norm(rhs - self.system @ x) / norm_rhs
-            print("BiCGStab: Iterate {:3}, Residual: {:.2e}".format(num_it, res))
+            logging.debug("{:4}  {:.2e}".format(num_it, res))
 
         sol, info = spla.bicgstab(
             self.system,

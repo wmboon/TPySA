@@ -8,6 +8,8 @@ from opm.io.schedule import Schedule
 from opm.io.summary import SummaryConfig
 from opm.util import EModel
 
+import logging
+
 import tpysa
 
 
@@ -23,6 +25,7 @@ class Biot_Model:
     ):
         self.opmcase = opmcase
         self.deck_file = "{}.DATA".format(self.opmcase)
+        self.output_file = "{}.INFO".format(self.opmcase)
 
         self.data = data
         self.GridType = GridType
@@ -34,6 +37,7 @@ class Biot_Model:
         self.py_write_vtk = vtk_flag == "Python"
 
     def simulate(self):
+        self.initialize_logger()
         self.initialize()
         self.run()
 
@@ -109,7 +113,28 @@ class Biot_Model:
 
         self.coupler = self.CouplerType(n_space, n_time, self.opmcase)
 
+    def initialize_logger(self):
+        # Logging the debug info
+        logging.basicConfig(
+            format="%(message)s",
+            filename=self.output_file,
+            filemode="w",
+            level=logging.DEBUG,
+        )
+
+        # Logging the general information
+        logger = logging.getLogger()
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.INFO)
+
+        formatter = logging.Formatter("TPSA: %(message)s")
+        ch.setFormatter(formatter)
+
+        logger.addHandler(ch)
+
     def run(self):
+        logging.debug("\nStart of Simulation")
+
         ## Initial conditions
         solid_p0 = np.zeros_like(self.data["ref_pressure"])
 
@@ -118,7 +143,7 @@ class Biot_Model:
         ## Ready to simulate
         while not self.sim.check_simulation_finished():
             current_step = self.sim.current_step()
-            print("TPSA: Report step {}".format(current_step))
+            logging.debug("\nReport step {}".format(current_step))
             dt = (
                 reportsteps[current_step] - reportsteps[current_step - 1]
             ).total_seconds()
@@ -152,9 +177,11 @@ class Biot_Model:
             self.sim.step()
 
         ## Compute solution at the final step
+        current_step = self.sim.current_step()
+        logging.debug("\nReport step {}".format(current_step))
         fluid_p = self.sim.get_primary_variable("pressure")
         displ, rotat, solid_p = self.disc.solve(self.data, fluid_p, self.solver)
-        self.write_vtk(self.sim.current_step(), fluid_p, displ, rotat, solid_p)
+        self.write_vtk(current_step, fluid_p, displ, rotat, solid_p)
 
         ## Cleanup
         self.coupler.cleanup()

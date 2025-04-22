@@ -2,6 +2,7 @@ import numpy as np
 import scipy.sparse as sps
 import time
 import tpysa
+import logging
 
 
 class TPSA:
@@ -49,17 +50,16 @@ class TPSA:
         M = self.assemble_first_order_terms(data, scale_factor=data["scaling"])
 
         self.system = sps.csc_array(A - M)
-        print(
-            "TPSA: Assembled system with {:} dof ({:.2f} sec)".format(
-                self.system.shape[0],
-                time.time() - start_time,
+        logging.info(
+            "Assembled system with {:} dof ({:.2f} sec)".format(
+                self.system.shape[0], time.time() - start_time
             )
         )
 
         if "ref_pressure" in data:
             self.ref_pressure = data["ref_pressure"]
         else:
-            print("No reference pressure given; setting p_ref to zero.")
+            logging.warning("No reference pressure given; setting p_ref to zero.")
             self.ref_pressure = np.zeros(self.sd.num_cells)
 
     def assemble_second_order_terms(self, scale_factor: float = 1.0) -> sps.sparray:
@@ -115,7 +115,7 @@ class TPSA:
 
         # Check if any cell centers are placed outside the cell
         if np.any(delta_ki < 0):
-            print(
+            logging.debug(
                 "Moving {} extra-cellular centers to the mean of the nodes".format(
                     np.sum(delta_ki < 0)
                 )
@@ -130,15 +130,17 @@ class TPSA:
                 # Recompute the deltas with the updated cell center
                 delta_ki[cf_pairs] = compute_delta_ki(cf_pairs)
 
-            print("{} extra-cellular centers remain".format(np.sum(delta_ki < 0)))
+            logging.debug(
+                "{} extra-cellular centers remain\n".format(np.sum(delta_ki < 0))
+            )
         if np.any(delta_ki < 0):
             # Report on the first problematic cell for visual inspection
             first_cell = cells[np.argmax(delta_ki <= 0)]
             ijk = self.sd.ijk_from_active_index(first_cell)
             glob_ind = self.sd.global_index(*ijk)
 
-            print(
-                "Cell with global index {} has an extra-cellular center.".format(
+            logging.warning(
+                "Cell with global index {} has an extra-cellular center.\n".format(
                     glob_ind
                 )
             )
