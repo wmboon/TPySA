@@ -71,9 +71,15 @@ class CartGrid(tpysa.Grid):
             self.face_centers[2], np.min(self.face_centers[2])
         )
 
-        # Clamp the remaining boundaries
-        self.tags["displ_bdry"] = np.logical_xor(
-            self.tags["domain_boundary_faces"], self.tags["tract_bdry"]
+        # Clamp the bottom boundary
+        self.tags["displ_bdry"] = np.isclose(
+            self.face_centers[2], np.max(self.face_centers[2])
+        )
+
+        # Put springs on the remaining boundaries
+        self.tags["sprng_bdry"] = np.logical_xor(
+            self.tags["domain_boundary_faces"],
+            np.logical_or(self.tags["tract_bdry"], self.tags["displ_bdry"]),
         )
 
 

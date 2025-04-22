@@ -101,7 +101,8 @@ class Grid(EGrid):
             self.face_nodes @ self.tags["domain_boundary_faces"]
         )
 
-        self.tags["tract_bdry"] = self.tags["domain_boundary_faces"].copy()
+        self.tags["sprng_bdry"] = self.tags["domain_boundary_faces"].copy()
+        self.tags["tract_bdry"] = np.zeros_like(self.tags["domain_boundary_faces"])
         self.tags["displ_bdry"] = np.zeros_like(self.tags["domain_boundary_faces"])
 
     def get_vtk(self) -> vtk.vtkUnstructuredGrid:

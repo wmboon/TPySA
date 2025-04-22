@@ -152,7 +152,7 @@ class AMGSolver(Solver):
             callback=callback,
         )
         self.report_time(
-            "BiCGStab converged in {} iterations to an accuracy of {:.0e}".format(
+            "BiCGStab converged in {} iterations to an accuracy of {:.2e}".format(
                 num_it, res
             ),
             start_time,

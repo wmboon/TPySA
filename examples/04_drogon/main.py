@@ -10,7 +10,7 @@ def main():
         "lambda": 4e9,  # 4.0 GPa
         "alpha": 0.87,  # O(1)
         "n_total_cells": 46 * 73 * 31,
-        # "rtol": 1e-5,  # Relative residual tolerance for the iterative solver
+        "rtol": 1e-4,  # Relative residual tolerance for the iterative solver
         "vtk_writer": "Python",  # First run with "OPM", then "Python"
     }
 

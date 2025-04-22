@@ -43,7 +43,7 @@ class FaultGrid(tpysa.Grid):
         super().tag_boundaries()
 
         # Extract the "top" faces
-        bdry = self.tags["domain_boundary_faces"].copy()
+        bdry = self.tags["domain_boundary_faces"]
 
         north = np.logical_and(bdry, self.face_centers[1] > 3490)
         # east = np.logical_and(bdry, self.face_centers[0] > 3997)
@@ -63,13 +63,9 @@ class FaultGrid(tpysa.Grid):
 
         # top_half = self.face_centers[2, :] <= plane_z
 
-        tract = np.zeros_like(bdry)
-        tract = np.logical_or(tract, north)
-        tract = np.logical_or(tract, south)
+        self.tags["displ_bdry"] = np.logical_or(south, north)
 
-        self.tags["tract_bdry"] = tract
-
-        self.tags["displ_bdry"] = np.logical_xor(
+        self.tags["sprng_bdry"] = np.logical_xor(
             self.tags["domain_boundary_faces"], self.tags["tract_bdry"]
         )
 

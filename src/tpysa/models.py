@@ -117,6 +117,7 @@ class Biot_Model:
         ## Ready to simulate
         while not self.sim.check_simulation_finished():
             current_step = self.sim.current_step()
+            print("TPSA: Report step {}".format(current_step))
             dt = (
                 reportsteps[current_step] - reportsteps[current_step - 1]
             ).total_seconds()
