@@ -88,6 +88,7 @@ class Biot_Model:
 
         # Manage the physical parameters
         self.manage_data(self.grid.num_cells)
+        self.compute_spring_constant()
 
         ## Initialize Mechanics
         self.data["ref_pressure"] = self.sim.get_primary_variable("pressure")
@@ -191,6 +192,17 @@ class Biot_Model:
         )
 
         assert isinstance(self.data["rock_biot"], np.ScalarType)
+
+    def compute_spring_constant(self):
+        bdry_mu_delta = self.data.get("bdry_mu_over_delta")
+
+        if bdry_mu_delta is None:
+            delta_typ = 0.05 * (self.grid.nodes[2].max() - self.grid.nodes[2].min())
+            mu_typ = np.mean(self.data["mu"])
+            bdry_mu_delta = mu_typ / delta_typ
+
+        self.data["bdry_mu_over_delta"] = np.zeros(self.grid.num_faces)
+        self.data["bdry_mu_over_delta"][self.grid.tags["sprng_bdry"]] = bdry_mu_delta
 
     def manage_data(self, num_cells: int):
         """
