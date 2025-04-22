@@ -40,13 +40,15 @@ class ILUSolver(Solver):
         start_time = time.time()
 
         num_it = 0
+        res = 0
 
         def callback(r):
-            nonlocal num_it
+            nonlocal num_it, res
             num_it += 1
+            res = r
             print(
                 "GMRes: Iterate {:3}, Prec. Res. norm: {:.2e}".format(num_it, r),
-                end="\r",
+                file=self.output_file,
             )
 
         sol, info = spla.gmres(
@@ -57,7 +59,12 @@ class ILUSolver(Solver):
             callback=callback,
             callback_type="pr_norm",
         )
-        self.report_time("GMRes converged in {} iterations".format(num_it), start_time)
+        self.report_time(
+            "GMRes converged in {} iterations to an accuracy of {:.2e}".format(
+                num_it, res
+            ),
+            start_time,
+        )
 
         return sol, info
 

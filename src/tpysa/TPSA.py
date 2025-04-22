@@ -164,7 +164,7 @@ class TPSA:
         # Displacement bc
         dk_mu[self.sd.tags["displ_bdry"]] = 0
 
-        # Traction bc are handled naturally
+        # Traction bc are handled naturally as a subset of spring_bdry with zero spring constant
 
         return dk_mu
 
@@ -193,14 +193,13 @@ class TPSA:
 
         # Displacement bc are handled naturally
 
-        # At the traction boundaries, mu_bar / delta_k = 0
-        mu_bar_delta[self.sd.tags["tract_bdry"]] *= 0.0
-
         # Spring bc
         mask = self.sd.tags["sprng_bdry"]
         mu_bar_delta[mask] *= self.bdry_mu_delta[mask] / (
             self.bdry_mu_delta[mask] + mu_bar_delta[mask]
         )
+
+        # This also takes care of traction bc because bdry_mu_delta is zero there
 
         return mu_bar_delta
 

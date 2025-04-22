@@ -66,7 +66,7 @@ class FaultGrid(tpysa.Grid):
         self.tags["displ_bdry"] = np.logical_or(south, north)
 
         self.tags["sprng_bdry"] = np.logical_xor(
-            self.tags["domain_boundary_faces"], self.tags["tract_bdry"]
+            self.tags["domain_boundary_faces"], self.tags["displ_bdry"]
         )
 
 

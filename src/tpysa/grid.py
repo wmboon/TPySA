@@ -70,6 +70,7 @@ class Grid(EGrid):
 
         self.tags = {}
         self.tag_boundaries()
+        self.check_boundary_tags()
 
         self.actnum = self.actnum.astype(bool)
 
@@ -102,8 +103,19 @@ class Grid(EGrid):
         )
 
         self.tags["sprng_bdry"] = self.tags["domain_boundary_faces"].copy()
-        self.tags["tract_bdry"] = np.zeros_like(self.tags["domain_boundary_faces"])
         self.tags["displ_bdry"] = np.zeros_like(self.tags["domain_boundary_faces"])
+
+    def check_boundary_tags(self):
+        # Include the traction boundaries in the spring boundary tag
+        if "tract_bdry" in self.tags:
+            self.tags["sprng_bdry"] = np.logical_or(
+                self.tags["sprng_bdry"], self.tags["tract_bdry"]
+            )
+
+        # Check if all boundary faces are tagged exactly once
+        coverage_check = np.logical_or(self.tags["sprng_bdry"], self.tags["displ_bdry"])
+        assert np.all(coverage_check == self.tags["domain_boundary_faces"])
+        assert ~np.any(np.logical_and(self.tags["sprng_bdry"], self.tags["displ_bdry"]))
 
     def get_vtk(self) -> vtk.vtkUnstructuredGrid:
         if not hasattr(self, "vtk_grid"):
