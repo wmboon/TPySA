@@ -11,7 +11,7 @@ def main():
         "alpha": 0.87,  # O(1)
         "n_total_cells": 181 * 317 * 217,
         "rtol": 1e-3,  # Relative residual tolerance for the iterative solver
-        "vtk_writer": "OPM",  # First run with "OPM", then "Python"
+        "vtk_writer": "Python",  # First run with "OPM", then "Python"
     }
 
     coupler = tpysa.Lagged
