@@ -1,5 +1,6 @@
 import numpy as np
-import warnings
+import logging
+import tpysa
 from opm.io.ecl import EGrid
 from opm.io.schedule import Schedule
 
@@ -36,14 +37,14 @@ class Coupler:
 class Lagged(Coupler):
     """docstring for Lagged coupler."""
 
-    def __init__(self, n_space, n_time=10, opm_case=""):
+    def __init__(self, n_space, *_):
         self.source = np.zeros(n_space)
         self.str = "lagged"
 
-    def save_source(self, current_step, source):
+    def save_source(self, source, *_):
         self.source = source
 
-    def get_source(self, current_step):
+    def get_source(self, *_):
         return self.source
 
     def cleanup(self):
@@ -53,24 +54,65 @@ class Lagged(Coupler):
 class Iterative(Coupler):
     """docstring for Iterative coupler."""
 
-    def __init__(self, n_space, n_time, opm_case=""):
-        self.sources_file = f"{opm_case}_sources.npz"
+    def __init__(self, n_space, opmcase: str):
+        self.source = np.zeros(n_space)
+        self.opmcase = opmcase
         self.str = "iterative"
 
-        try:
-            self.source = np.load(self.sources_file)["source"]
-        except Exception:
-            warnings.warn("No source file found")
-            self.source = np.zeros((n_time, n_space))
+        self.num_cells = n_space
+        self.sqrd_diff_source = 0.0
+        self.sqrd_norm_source = 0.0
 
-        if self.source.shape != (n_time, n_space):
-            self.source = np.zeros((n_time, n_space))
+        logger = logging.getLogger()
+        ch = logging.FileHandler(self.opmcase + ".ITER")
+        ch.setLevel(logging.ERROR)
 
-    def save_source(self, current_step, source):
-        self.source[current_step - 1] = source
+        formatter = logging.Formatter("%(message)s")
+        ch.setFormatter(formatter)
+
+        logger.addHandler(ch)
+
+    def save_source(self, source, current_step):
+        if current_step > 0:
+            tpysa.write_vtk(
+                {"vol_source": source}, self.opmcase, current_step - 1, self.num_cells
+            )
+
+        diff = source - self.source
+        self.sqrd_diff_source += np.dot(diff, diff)
+        self.sqrd_norm_source += np.dot(source, source)
 
     def get_source(self, current_step):
-        return self.source[current_step]
+        self.source = tpysa.read_source_from_vtk(
+            self.opmcase, current_step, self.num_cells
+        )
+        return self.source.copy()
 
     def cleanup(self):
-        np.savez(self.sources_file, source=self.source)
+        logging.error(
+            "Source difference, abs: {:.2e}, rel: {:.4e}".format(
+                np.sqrt(self.sqrd_diff_source),
+                np.sqrt(self.sqrd_diff_source / self.sqrd_norm_source),
+            )
+        )
+
+
+class Reset(Coupler):
+    """The purpose of this coupler is to zero out the saved mass sources."""
+
+    def __init__(self, n_space, opmcase: str):
+        self.source = np.zeros(n_space)
+        self.opmcase = opmcase
+        self.str = "Reset"
+        self.num_cells = n_space
+
+    def save_source(self, source, current_step):
+        tpysa.write_vtk(
+            {"vol_source": self.source}, self.opmcase, current_step, self.num_cells
+        )
+
+    def get_source(self, *_):
+        return self.source
+
+    def cleanup(self):
+        logging.error("Zeroed out the source terms in the vtu files")

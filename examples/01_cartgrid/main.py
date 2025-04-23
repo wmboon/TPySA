@@ -56,8 +56,9 @@ class CartBiot_Model(tpysa.Biot_Model):
         for well in schedule.get_wells(0):
             schedule.open_well(well.name, 0)
 
-        for well in schedule.get_wells(25):
-            schedule.shut_well(well.name, 25)
+        if len(schedule.reportsteps) > 25:
+            for well in schedule.get_wells(25):
+                schedule.shut_well(well.name, 25)
 
 
 class CartGrid(tpysa.Grid):

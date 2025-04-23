@@ -108,10 +108,7 @@ class Biot_Model:
         self.solver = self.SolverType(self.disc.system)
 
         ## Choose coupling scheme
-        n_time = len(self.schedule.reportsteps)
-        n_space = self.grid.num_cells
-
-        self.coupler = self.CouplerType(n_space, n_time, self.opmcase)
+        self.coupler = self.CouplerType(self.grid.num_cells, self.opmcase)
 
     def initialize_logger(self):
         # Logging the debug info
@@ -136,56 +133,53 @@ class Biot_Model:
         logging.debug("\nStart of Simulation")
 
         ## Initial conditions
-        solid_p0 = np.zeros_like(self.data["ref_pressure"])
-
-        reportsteps = self.schedule.reportsteps
+        solid_p = np.zeros_like(self.data["ref_pressure"])
 
         ## Ready to simulate
         while not self.sim.check_simulation_finished():
-            current_step = self.sim.current_step()
-            logging.debug("\nReport step {}".format(current_step))
-            dt = (
-                reportsteps[current_step] - reportsteps[current_step - 1]
-            ).total_seconds()
-
-            var_dict = tpysa.get_fluidstate_variables(self.sim)
-
-            # Compute current fluid and solid pressures
-            fluid_p = self.sim.get_primary_variable("pressure")
-            displ, rotat, solid_p = self.disc.solve(self.data, fluid_p, self.solver)
-
-            # Compute the change in solid pressures
-            # during the previous time step
-            delta_ps = (solid_p - solid_p0) / dt
-
-            # Compute the mass source
-            vol_source = -self.data["alpha"] / self.data["lambda"] * delta_ps
-
-            # Set the mass source
-            self.coupler.save_source(current_step, vol_source)
-            self.coupler.set_mass_source(
-                self.grid, self.schedule, current_step, var_dict
-            )
-
-            # Save the solid pressure for the next time step
-            solid_p0 = solid_p.copy()
-
-            # Output solution
-            self.write_vtk(current_step, fluid_p, displ, rotat, solid_p)
+            #
+            solid_p = self.simulate_one_time_step(solid_p)
 
             # Advance
             self.sim.step()
 
         ## Compute solution at the final step
-        current_step = self.sim.current_step()
-        logging.debug("\nReport step {}".format(current_step))
-        fluid_p = self.sim.get_primary_variable("pressure")
-        displ, rotat, solid_p = self.disc.solve(self.data, fluid_p, self.solver)
-        self.write_vtk(current_step, fluid_p, displ, rotat, solid_p)
+        solid_p = self.simulate_one_time_step(solid_p)
 
         ## Cleanup
         self.coupler.cleanup()
         self.sim.step_cleanup()
+
+    def simulate_one_time_step(self, solid_p0):
+        current_step = self.sim.current_step()
+        logging.debug("\nReport step {}".format(current_step))
+
+        reportsteps = self.schedule.reportsteps
+        dt = (reportsteps[current_step] - reportsteps[current_step - 1]).total_seconds()
+
+        var_dict = tpysa.get_fluidstate_variables(self.sim)
+
+        # Extract current fluid pressure
+        fluid_p = self.sim.get_primary_variable("pressure")
+
+        # Compute new solid pressure
+        displ, rotat, solid_p = self.disc.solve(self.data, fluid_p, self.solver)
+
+        # Compute the change in solid pressures
+        # during the previous time step
+        delta_ps = (solid_p - solid_p0) / dt
+
+        # Compute the mass source
+        vol_source = -self.data["alpha"] / self.data["lambda"] * delta_ps
+
+        # Let the coupler save and set the mass source
+        self.coupler.save_source(current_step, vol_source)
+        self.coupler.set_mass_source(self.grid, self.schedule, current_step, var_dict)
+
+        # Output solution
+        self.write_vtk(current_step, fluid_p, displ, rotat, solid_p)
+
+        return solid_p
 
     def write_vtk(
         self,
@@ -211,7 +205,7 @@ class Biot_Model:
                 "pressure_diff": diff_p,
                 "FIPNUM": self.data["FIPNUM"],
             }
-            tpysa.write_vtk(self.grid, sol_dict, self.opmcase, current_step)
+            tpysa.write_vtk(sol_dict, self.opmcase, current_step, self.grid.num_cells)
 
     def compute_rock_biot(self):
         self.data["rock_biot"] = (
