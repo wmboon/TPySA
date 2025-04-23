@@ -4,7 +4,6 @@ from vtkmodules.vtkIOXML import (
     vtkXMLUnstructuredGridWriter,
 )
 import numpy as np
-import logging
 from vtkmodules.numpy_interface import dataset_adapter as dsa
 
 
@@ -47,7 +46,9 @@ def extract_dataset(file_name):
         vtk_object = reader.GetOutput()
 
     else:
-        logging.error('No VTK files found, run with "OPM" as vtk-writer.')
+        raise FileNotFoundError(
+            'No VTK files found, first do a run with "OPM" as vtk-writer.'
+        )
 
     dataset = dsa.WrapDataObject(vtk_object)
     return dataset

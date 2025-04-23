@@ -86,7 +86,7 @@ class Iterative(Coupler):
         self.source = tpysa.read_source_from_vtk(
             self.opmcase, current_step, self.num_cells
         )
-        return self.source.copy()
+        return self.source.astype(float, copy=True)
 
     def cleanup(self):
         logging.error(
@@ -106,7 +106,7 @@ class Reset(Coupler):
         self.str = "Reset"
         self.num_cells = n_space
 
-    def save_source(self, source, current_step):
+    def save_source(self, _, current_step):
         tpysa.write_vtk(
             {"vol_source": self.source}, self.opmcase, current_step, self.num_cells
         )

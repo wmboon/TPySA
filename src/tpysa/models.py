@@ -137,20 +137,20 @@ class Biot_Model:
 
         ## Ready to simulate
         while not self.sim.check_simulation_finished():
-            #
-            solid_p = self.simulate_one_time_step(solid_p)
+            # Update the solid pressure and mass source
+            solid_p = self.perform_one_time_step(solid_p)
 
-            # Advance
+            # Advance the flow simulation
             self.sim.step()
 
         ## Compute solution at the final step
-        solid_p = self.simulate_one_time_step(solid_p)
+        solid_p = self.perform_one_time_step(solid_p)
 
         ## Cleanup
         self.coupler.cleanup()
         self.sim.step_cleanup()
 
-    def simulate_one_time_step(self, solid_p0):
+    def perform_one_time_step(self, solid_p0: np.ndarray):
         current_step = self.sim.current_step()
         logging.debug("\nReport step {}".format(current_step))
 
@@ -162,18 +162,17 @@ class Biot_Model:
         # Extract current fluid pressure
         fluid_p = self.sim.get_primary_variable("pressure")
 
-        # Compute new solid pressure
+        # Solve the mechanics equations
         displ, rotat, solid_p = self.disc.solve(self.data, fluid_p, self.solver)
 
-        # Compute the change in solid pressures
-        # during the previous time step
+        # Compute the change in solid pressures during the previous time step
         delta_ps = (solid_p - solid_p0) / dt
 
         # Compute the mass source
         vol_source = -self.data["alpha"] / self.data["lambda"] * delta_ps
 
         # Let the coupler save and set the mass source
-        self.coupler.save_source(current_step, vol_source)
+        self.coupler.save_source(vol_source, current_step)
         self.coupler.set_mass_source(self.grid, self.schedule, current_step, var_dict)
 
         # Output solution
