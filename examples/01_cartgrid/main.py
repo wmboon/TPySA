@@ -15,8 +15,9 @@ def main(nx=10):
         "n_time": 50,
         "n_total_cells": nx**3,
         "vtk_writer": "Python",  # First run with "OPM", then "Python"
+        "vtk_reset": False,
     }
-    coupler = tpysa.Lagged
+    coupler = tpysa.Iterative
 
     ## Create a n x n x n Cartesian grid
     case_str = "GRID_" + str(nx)

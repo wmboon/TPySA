@@ -33,11 +33,31 @@ class Biot_Model:
         self.SolverType = SolverType
         self.CouplerType = CouplerType
 
-        vtk_flag = self.data.get("vtk_writer", "Python")
-        self.py_write_vtk = vtk_flag == "Python"
+        vtk_writer = self.data.get("vtk_writer", "Python")
+        self.vtk_writer_is_python = vtk_writer == "Python"
+        self.vtk_reset = self.data.get("vtk_reset", False)
+        self.initialize_logger()
+
+    def initialize_logger(self):
+        # Logging the debug info
+        logging.basicConfig(
+            format="%(message)s",
+            filename=self.output_file,
+            filemode="w",
+            level=logging.DEBUG,
+        )
+
+        # Logging the general information to stdout
+        logger = logging.getLogger()
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.INFO)
+
+        formatter = logging.Formatter("TPSA: %(message)s")
+        ch.setFormatter(formatter)
+
+        logger.addHandler(ch)
 
     def simulate(self):
-        self.initialize_logger()
         self.initialize()
         self.run()
 
@@ -53,7 +73,7 @@ class Biot_Model:
         output_dir = os.path.join(os.path.dirname(self.deck_file), "solution")
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
-            self.py_write_vtk = 0
+            self.vtk_writer_is_python = 0
 
         ## Initialize flow simulator
         state = EclipseState(deck)
@@ -65,7 +85,7 @@ class Biot_Model:
             self.schedule,
             summary_config,
             args=[
-                "--enable-vtk-output={}".format(1 - self.py_write_vtk),
+                "--enable-vtk-output={}".format(1 - self.vtk_writer_is_python),
                 "--output-dir={}".format(output_dir),
             ],
         )
@@ -108,26 +128,20 @@ class Biot_Model:
         self.solver = self.SolverType(self.disc.system)
 
         ## Choose coupling scheme
-        self.coupler = self.CouplerType(self.grid.num_cells, self.opmcase)
+        self.coupler = self.CouplerType(self.grid.cell_volumes, self.opmcase)
 
-    def initialize_logger(self):
-        # Logging the debug info
-        logging.basicConfig(
-            format="%(message)s",
-            filename=self.output_file,
-            filemode="w",
-            level=logging.DEBUG,
-        )
+        if self.vtk_reset:
+            self.zero_out_vol_source()
 
-        # Logging the general information
-        logger = logging.getLogger()
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.INFO)
+    def zero_out_vol_source(self):
+        num_cells = self.grid.num_cells
+        num_steps = len(self.schedule.reportsteps)
 
-        formatter = logging.Formatter("TPSA: %(message)s")
-        ch.setFormatter(formatter)
-
-        logger.addHandler(ch)
+        for ind in range(num_steps):
+            tpysa.write_vtk(
+                {"vol_source": np.zeros(num_cells)}, self.opmcase, ind, num_cells
+            )
+        logging.error("Reset ON: Zeroed out the source terms in the vtu files")
 
     def run(self):
         logging.debug("\nStart of Simulation")
@@ -151,34 +165,44 @@ class Biot_Model:
         self.sim.step_cleanup()
 
     def perform_one_time_step(self, solid_p0: np.ndarray):
-        current_step = self.sim.current_step()
-        logging.debug("\nReport step {}".format(current_step))
+        if not self.vtk_writer_is_python:
+            logging.debug("Python coupling deactivated.")
+            return solid_p0
 
-        reportsteps = self.schedule.reportsteps
-        dt = (reportsteps[current_step] - reportsteps[current_step - 1]).total_seconds()
+        else:
+            current_step = self.sim.current_step()
+            logging.debug("\nReport step {}".format(current_step))
 
-        var_dict = tpysa.get_fluidstate_variables(self.sim)
+            reportsteps = self.schedule.reportsteps
+            dt = (
+                reportsteps[current_step] - reportsteps[current_step - 1]
+            ).total_seconds()
 
-        # Extract current fluid pressure
-        fluid_p = self.sim.get_primary_variable("pressure")
+            # Extract current fluid pressure
+            fluid_p = self.sim.get_primary_variable("pressure")
 
-        # Solve the mechanics equations
-        displ, rotat, solid_p = self.disc.solve(self.data, fluid_p, self.solver)
+            # Solve the mechanics equations
+            displ, rotat, solid_p = self.disc.solve(self.data, fluid_p, self.solver)
 
-        # Compute the change in solid pressures during the previous time step
-        delta_ps = (solid_p - solid_p0) / dt
+            # Compute the change in solid pressures during the previous time step
+            delta_ps = (solid_p - solid_p0) / dt
 
-        # Compute the mass source
-        vol_source = -self.data["alpha"] / self.data["lambda"] * delta_ps
+            # Compute the source in the mass balance equation
+            vol_source = -self.data["alpha"] / self.data["lambda"] * delta_ps
 
-        # Let the coupler save and set the mass source
-        self.coupler.save_source(vol_source, current_step)
-        self.coupler.set_mass_source(self.grid, self.schedule, current_step, var_dict)
+            # Let the coupler process and set the mass source
+            self.coupler.process_source(vol_source, dt)
 
-        # Output solution
-        self.write_vtk(current_step, fluid_p, displ, rotat, solid_p)
+            if current_step < len(reportsteps) - 1:
+                var_dict = tpysa.get_fluidstate_variables(self.sim)
+                self.coupler.set_mass_source(
+                    self.grid, self.schedule, current_step, var_dict
+                )
 
-        return solid_p
+            # Output solution at time t_i and save the mass source for (t_{i - 1}, t_i]
+            self.write_vtk(current_step, fluid_p, displ, rotat, solid_p, vol_source)
+
+            return solid_p
 
     def write_vtk(
         self,
@@ -187,24 +211,21 @@ class Biot_Model:
         displ: np.ndarray,
         rotat: np.ndarray,
         solid_p: np.ndarray,
+        vol_source: np.ndarray,
     ):
-        if not self.py_write_vtk:
-            return
-        else:
-            vol_change = self.disc.recover_volumetric_change(
-                solid_p, fluid_p, self.data
-            )
-            diff_p = fluid_p - self.data["ref_pressure"]
-            sol_dict = {
-                "pressure_fluid": fluid_p,
-                "pressure_solid": solid_p,
-                "displacement": displ,
-                "rotation": rotat,
-                "vol_change": vol_change,
-                "pressure_diff": diff_p,
-                "FIPNUM": self.data["FIPNUM"],
-            }
-            tpysa.write_vtk(sol_dict, self.opmcase, current_step, self.grid.num_cells)
+        vol_change = self.disc.recover_volumetric_change(solid_p, fluid_p, self.data)
+        diff_p = fluid_p - self.data["ref_pressure"]
+        sol_dict = {
+            "pressure_fluid": fluid_p,
+            "pressure_solid": solid_p,
+            "displacement": displ,
+            "rotation": rotat,
+            "vol_change": vol_change,
+            "pressure_diff": diff_p,
+            "FIPNUM": self.data["FIPNUM"],
+            "vol_source": vol_source,
+        }
+        tpysa.write_vtk(sol_dict, self.opmcase, current_step, self.grid.num_cells)
 
     def compute_rock_biot(self):
         self.data["rock_biot"] = (

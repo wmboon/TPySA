@@ -1,5 +1,5 @@
 from tpysa.grid import Grid
-from tpysa.couplers import Coupler, Lagged, Iterative, Reset
+from tpysa.couplers import Coupler, Lagged, Iterative
 from tpysa.solvers import Solver, DirectSolver, ILUSolver, AMGSolver
 from tpysa.TPSA import TPSA
 from tpysa.deck_templates import generate_deck_from_template

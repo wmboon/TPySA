@@ -9,7 +9,7 @@ class Coupler:
     def set_mass_source(
         self, grid: EGrid, schedule: Schedule, current_step: int, variables: dict
     ):
-        source = self.get_source(current_step)
+        source = self.get_source(current_step).astype(float, copy=True)
 
         # Make into array if it is a scalar
         if isinstance(source, np.ScalarType):
@@ -37,14 +37,14 @@ class Coupler:
 class Lagged(Coupler):
     """docstring for Lagged coupler."""
 
-    def __init__(self, n_space, *_):
-        self.source = np.zeros(n_space)
+    def __init__(self, volumes, *args):
+        self.source = np.zeros_like(volumes)
         self.str = "lagged"
 
-    def save_source(self, source, *_):
+    def process_source(self, source, *args):
         self.source = source
 
-    def get_source(self, *_):
+    def get_source(self, *args):
         return self.source
 
     def cleanup(self):
@@ -54,15 +54,17 @@ class Lagged(Coupler):
 class Iterative(Coupler):
     """docstring for Iterative coupler."""
 
-    def __init__(self, n_space, opmcase: str):
-        self.source = np.zeros(n_space)
+    def __init__(self, volumes: np.ndarray, opmcase: str):
+        self.source = np.zeros_like(volumes)
         self.opmcase = opmcase
         self.str = "iterative"
 
-        self.num_cells = n_space
+        self.volumes = volumes
         self.sqrd_diff_source = 0.0
         self.sqrd_norm_source = 0.0
+        self.initialize_logger()
 
+    def initialize_logger(self):
         logger = logging.getLogger()
         ch = logging.FileHandler(self.opmcase + ".ITER")
         ch.setLevel(logging.ERROR)
@@ -72,21 +74,22 @@ class Iterative(Coupler):
 
         logger.addHandler(ch)
 
-    def save_source(self, source, current_step):
-        if current_step > 0:
-            tpysa.write_vtk(
-                {"vol_source": source}, self.opmcase, current_step - 1, self.num_cells
-            )
-
+    def process_source(self, source, dt: float):
+        """
+        Compares the computed source to the one from the previous space-time iteration
+        """
         diff = source - self.source
-        self.sqrd_diff_source += np.dot(diff, diff)
-        self.sqrd_norm_source += np.dot(source, source)
+        self.sqrd_diff_source += dt * np.dot(diff, self.volumes * diff)
+        self.sqrd_norm_source += dt * np.dot(source, self.volumes * source)
 
     def get_source(self, current_step):
+        """
+        Extracts the source for (t_i, t_{i + 1}] from the vtu-file at t_{i + 1}
+        """
         self.source = tpysa.read_source_from_vtk(
-            self.opmcase, current_step, self.num_cells
+            self.opmcase, current_step + 1, self.volumes.size
         )
-        return self.source.astype(float, copy=True)
+        return self.source
 
     def cleanup(self):
         logging.error(
@@ -95,24 +98,3 @@ class Iterative(Coupler):
                 np.sqrt(self.sqrd_diff_source / self.sqrd_norm_source),
             )
         )
-
-
-class Reset(Coupler):
-    """The purpose of this coupler is to zero out the saved mass sources."""
-
-    def __init__(self, n_space, opmcase: str):
-        self.source = np.zeros(n_space)
-        self.opmcase = opmcase
-        self.str = "Reset"
-        self.num_cells = n_space
-
-    def save_source(self, _, current_step):
-        tpysa.write_vtk(
-            {"vol_source": self.source}, self.opmcase, current_step, self.num_cells
-        )
-
-    def get_source(self, *_):
-        return self.source
-
-    def cleanup(self):
-        logging.error("Zeroed out the source terms in the vtu files")
