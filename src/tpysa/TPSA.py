@@ -123,10 +123,10 @@ class TPSA:
         delta_ki = compute_delta_ki()
 
         # Check if any cell centers are placed outside the cell
-        if np.any(delta_ki < 0):
+        if np.any(delta_ki <= 0):
             logging.debug(
                 "Moving {} extra-cellular centers to the mean of the nodes".format(
-                    np.sum(delta_ki < 0)
+                    np.sum(delta_ki <= 0)
                 )
             )
             for cell in cells[delta_ki <= 0]:
@@ -139,20 +139,16 @@ class TPSA:
                 # Recompute the deltas with the updated cell center
                 delta_ki[cf_pairs] = compute_delta_ki(cf_pairs)
 
-            if np.any(delta_ki < 0):
+            if np.any(delta_ki <= 0):
                 # Report on the first problematic cell for visual inspection
                 first_cell = cells[np.argmax(delta_ki <= 0)]
                 ijk = self.sd.ijk_from_active_index(first_cell)
                 glob_ind = self.sd.global_index(*ijk)
 
-                logging.debug(
-                    "{} extra-cellular centers remain".format(np.sum(delta_ki < 0))
-                )
                 logging.warning(
-                    "Cell with global index {} has an extra-cellular center.\n".format(
-                        glob_ind
-                    )
+                    "There are {} extra-cellular centers".format(np.sum(delta_ki <= 0))
                 )
+                logging.debug("Inspect cell with global index {}\n".format(glob_ind))
             else:
                 logging.debug("Fixed all cell-centers\n")
 

@@ -14,7 +14,6 @@
 src/tpysa.egg-info/*
 *.EGRID
 *.INIT
-*.npz
 examples/**/*.DATA
 *.INC
 *.GRDECL
