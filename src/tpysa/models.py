@@ -24,7 +24,7 @@ class Biot_Model:
     ):
         self.opmcase = opmcase
         self.deck_file = "{}.DATA".format(self.opmcase)
-        self.output_file = "{}.INFO".format(self.opmcase)
+        self.tpsa_output_file = "{}_TPSA.INFO".format(self.opmcase)
 
         self.data = data
         self.GridType = GridType
@@ -41,20 +41,18 @@ class Biot_Model:
         # Logging the debug info
         logging.basicConfig(
             format="%(message)s",
-            filename=self.output_file,
+            filename=self.tpsa_output_file,
             filemode="w",
             level=logging.DEBUG,
         )
 
         # Logging the general information to stdout
         logger = logging.getLogger()
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.INFO)
-
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.INFO)
         formatter = logging.Formatter("TPSA: %(message)s")
-        ch.setFormatter(formatter)
-
-        logger.addHandler(ch)
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
 
     def simulate(self) -> None:
         self.initialize()
@@ -124,7 +122,8 @@ class Biot_Model:
                 self.SolverType = tpysa.DirectSolver
             else:
                 self.SolverType = tpysa.AMGSolver
-        self.solver = self.SolverType(self.disc.system)
+        rtol = self.data.get("rtol", 1e-5)
+        self.solver = self.SolverType(self.disc.system, rtol)
 
         ## Choose coupling scheme
         self.coupler = self.CouplerType(self.grid.cell_volumes, self.opmcase)

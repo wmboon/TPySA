@@ -17,7 +17,7 @@ class Solver:
 
 
 class DirectSolver(Solver):
-    def __init__(self, system: sps.sparray):
+    def __init__(self, system: sps.sparray, *args):
         start_time = time.time()
         self.system_LU = spla.splu(system)
         self.report_time("LU-factorization", start_time)
@@ -31,15 +31,17 @@ class DirectSolver(Solver):
 
 
 class ILUSolver(Solver):
-    def __init__(self, system: sps.sparray):
+    def __init__(self, system: sps.sparray, rtol: float = 1e-5):
         start_time = time.time()
 
         self.system = system
+        self.rtol = rtol
+
         P_LU = spla.spilu(self.system, fill_factor=3)
         self.precond = spla.LinearOperator(self.system.shape, P_LU.solve)
         self.report_time("ILU-factorization", start_time)
 
-    def solve(self, rhs: np.ndarray, rtol: float = 1e-5) -> tuple:
+    def solve(self, rhs: np.ndarray) -> tuple:
         start_time = time.time()
 
         num_it = 0
@@ -56,7 +58,7 @@ class ILUSolver(Solver):
         sol, info = spla.gmres(
             self.system,
             rhs,
-            rtol=rtol,
+            rtol=self.rtol,
             M=self.precond,
             callback=callback,
             callback_type="pr_norm",
@@ -72,10 +74,11 @@ class ILUSolver(Solver):
 
 
 class AMGSolver(Solver):
-    def __init__(self, system: sps.sparray):
+    def __init__(self, system: sps.sparray, rtol: float = 1e-5):
         start_time = time.time()
 
         self.system = system
+        self.rtol = rtol
 
         ndof = self.system.shape[0]
         num_cells = ndof // 7
@@ -140,7 +143,7 @@ class AMGSolver(Solver):
         eye = sps.eye_array(*self.system.shape, format="csr")
         return eye[indices]
 
-    def solve(self, rhs: np.ndarray, rtol: float = 1e-5) -> tuple:
+    def solve(self, rhs: np.ndarray) -> tuple:
         start_time = time.time()
 
         num_it = 0
@@ -158,7 +161,7 @@ class AMGSolver(Solver):
         sol, info = spla.bicgstab(
             self.system,
             rhs,
-            rtol=rtol,
+            rtol=self.rtol,
             M=self.precond,
             callback=callback,
         )

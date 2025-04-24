@@ -47,10 +47,17 @@ class TPSA:
         self.mu_delta_ki = self.assemble_mu_delta_ki(data["mu"])
         self.dk_mu = self.assemble_delta_mu_k()
 
-        # Generate the matrices from (2.13) and (3.5)
-        A = self.assemble_second_order_terms(scale_factor=data["scaling"])
+        # Generate the first order terms in (3.9)
         M = self.assemble_first_order_terms(data, scale_factor=data["scaling"])
 
+        # Precompute the operator that multiplies with the area
+        # and applies the divergence
+        div_F = sps.csc_array(self.sd.cell_faces.T) * self.sd.face_areas
+
+        # Assemble the remaining terms in (3.9)
+        A = self.assemble_second_order_terms(div_F, scale_factor=data["scaling"])
+
+        # Assemble the matrix from (3.9)
         self.system = sps.csc_array(A - M)
         logging.info(
             "Assembled system with {:} dof ({:.2f} sec)".format(
@@ -64,13 +71,12 @@ class TPSA:
             logging.warning("No reference pressure given; setting p_ref to zero.")
             self.ref_pressure = np.zeros(self.sd.num_cells)
 
-    def assemble_second_order_terms(self, scale_factor: float = 1.0) -> sps.sparray:
+    def assemble_second_order_terms(
+        self, div_F: sps.sparray, scale_factor: float = 1.0
+    ) -> sps.sparray:
         """
-        Assemble the matrix from (3.7) that maps primary to dual variables
+        Assemble the second-order terms
         """
-        # Precompute the operator that multiplies with the area
-        # and applies the divergence
-        div_F = sps.csc_array(self.sd.cell_faces.T) * self.sd.face_areas
 
         # Preallocate the main matrix
         A = np.empty((3, 3), dtype=sps.sparray)
@@ -83,11 +89,11 @@ class TPSA:
 
         # The blocks in the first column depend on the averaging operator Xi
         Xi = self.assemble_xi()
-        A[1, 0], A[2, 0] = self.assemble_off_diagonals(Xi, div_F, True)
+        A[1, 0], A[2, 0] = self.assemble_off_diagonal_terms(Xi, div_F, True)
 
         # The blocks in the first row depend on the complementary operator Xi_tilde
         Xi_tilde = self.convert_to_xi_tilde(Xi)
-        A[0, 1], A[0, 2] = self.assemble_off_diagonals(Xi_tilde, div_F, False)
+        A[0, 1], A[0, 2] = self.assemble_off_diagonal_terms(Xi_tilde, div_F, False)
 
         A[2, 2] = -div_F * (0.5 * self.dk_mu * scale_factor) @ self.sd.cell_faces
 
@@ -96,9 +102,10 @@ class TPSA:
 
     def assemble_mu_delta_ki(self, mu: np.ndarray) -> np.ndarray:
         """
-        Compute mu / delta_k^i from (1.12) for every physical face-cell pair.
+        Compute mu / delta_k^i from (2.1) for every physical face-cell pair.
         Boundary conditions are handled later
         """
+
         faces, cells, orient = self.find_cf
 
         def compute_delta_ki(indices=slice(None)):
@@ -155,17 +162,16 @@ class TPSA:
         """
         Compute ( mu_i delta_k^-i + mu_j delta_k^-j)^-1
         for each face k with cells (i,j)
+
+        This is double the delta^mu_k of (3.5)
         """
 
         faces, _, _ = self.find_cf
         mu_dk = self.mu_delta_ki
 
-        # Spring bc
-        if np.any(self.sd.tags["sprng_bdry"]):
-            faces = np.concatenate((faces, np.flatnonzero(self.sd.tags["sprng_bdry"])))
-            mu_dk = np.concatenate(
-                (mu_dk, self.bdry_mu_delta[self.sd.tags["sprng_bdry"]])
-            )
+        # Incorporate the spring bc by extending the vectors
+        faces = np.concatenate((faces, np.flatnonzero(self.sd.tags["sprng_bdry"])))
+        mu_dk = np.concatenate((mu_dk, self.bdry_mu_delta[self.sd.tags["sprng_bdry"]]))
 
         dk_mu = 1 / (np.bincount(faces, weights=mu_dk))
 
@@ -179,7 +185,7 @@ class TPSA:
 
     def harmonic_avg(self) -> np.ndarray:
         """
-        Compute the harmonic average of mu, divided by delta_k, at each face
+        Compute the harmonic average of mu from (3.5), divided by delta_k, at each face
         """
 
         # The numerator
@@ -214,8 +220,9 @@ class TPSA:
 
     def assemble_xi(self) -> sps.sparray:
         """
-        Compute the averaging operator Xi
+        Compute the averaging operator Xi from (2.5)
         """
+
         faces, cells, _ = self.find_cf
         Xi = sps.csc_array((self.mu_delta_ki * self.dk_mu[faces], (faces, cells)))
 
@@ -227,21 +234,27 @@ class TPSA:
 
     def convert_to_xi_tilde(self, Xi: sps.sparray) -> sps.sparray:
         """
-        Compute the converse averaging operator Xi_tilde
-        This is an in-place operation to limit memory
+        Compute the converse averaging operator Xi_tilde from (2.6)
+        This is an in-place operation to save memory
         """
+
         Xi.data = 1 - Xi.data
         return Xi
 
-    def assemble_off_diagonals(
+    def assemble_off_diagonal_terms(
         self,
         Xi: sps.sparray,
         div_F: sps.sparray,
         map_from_u: bool = True,
     ) -> tuple[sps.sparray, sps.sparray]:
-        if self.sd.dim == 3:
-            nx, ny, nz = [(div_F * ni) @ Xi for ni in self.unit_normals]
+        nx, ny, nz = [(div_F * ni) @ Xi for ni in self.unit_normals]
+        """
+        Assemble the off-diagonal terms n \times Xi and n \cdot Xi in (3.7)
+        These are computed together because their construction uses similar components.
+        """
 
+        # Compute n times Xi
+        if self.sd.dim == 3:
             R_Xi = -sps.block_array(
                 [
                     [None, -nz, ny],
@@ -249,22 +262,27 @@ class TPSA:
                     [-ny, nx, None],
                 ]
             )
+        else:  # 2D
+            if map_from_u:  # Maps from u to r
+                R_Xi = -sps.hstack([-ny, nx])
+            else:  # Maps from r to u
+                R_Xi = -sps.vstack([ny, -nx])
 
-            if map_from_u:  # Maps from u to p
-                n_Xi = sps.hstack([nx, ny, nz])
-            else:  # Maps from p to u
-                n_Xi = sps.vstack([nx, ny, nz])
+        # Compute n cdot Xi
+        if map_from_u:  # Maps from u to p
+            n_Xi = sps.hstack([nx, ny, nz][: self.sd.dim])
+        else:  # Maps from p to u
+            n_Xi = sps.vstack([nx, ny, nz][: self.sd.dim])
 
-            return R_Xi, n_Xi
-        else:
-            raise NotImplementedError
+        return R_Xi, n_Xi
 
     def assemble_first_order_terms(
         self, data: dict, scale_factor: float = 1.0
     ) -> sps.csc_array:
         """
-        The diagonal terms
+        The first-order terms on the diagonal of (3.9)
         """
+
         volumes = self.sd.cell_volumes
         M_u = np.zeros(self.ndofs[0])
         M_r = np.tile(scale_factor * volumes / data["mu"], self.dim_r)
@@ -279,6 +297,7 @@ class TPSA:
         Assemble the right-hand side for a given isotropic stress field w,
         like a fluid pressure
         """
+
         rhs_u = np.zeros(self.ndofs[0])
         rhs_r = np.zeros(self.ndofs[1])
         rhs_p = self.sd.cell_volumes * data["alpha"] / data["lambda"] * w
@@ -286,6 +305,13 @@ class TPSA:
         return np.concatenate((rhs_u, rhs_r, rhs_p))
 
     def assemble_gravity_force(self, data: dict) -> np.ndarray:
+        """
+        Assemble a gravity force.
+
+        This function is not used in the main simulations because we assume that the
+        medium is in equilibrium at initial time
+        """
+
         w = np.zeros(self.ndofs[0])
         indices_uz = np.arange(
             (self.sd.dim - 1) * self.sd.num_cells, self.sd.dim * self.sd.num_cells
@@ -313,136 +339,47 @@ class TPSA:
     def solve(
         self, data: dict, pressure_source: np.ndarray, solver: tpysa.Solver
     ) -> tuple[np.ndarray]:
+        """
+        Solve the system, using the scaling given in data["scaling"]
+        """
         diff_pressure = pressure_source - self.ref_pressure
         rhs = self.assemble_isotropic_stress_source(data, diff_pressure)
 
-        scale_factor = np.concatenate(
+        scale_scalar = data.get("scaling", 1.0)
+        scale_vector = np.concatenate(
             (
-                np.full(self.ndofs[0], 1 / np.sqrt(data["scaling"])),
-                np.full(self.ndofs[1] + self.ndofs[2], np.sqrt(data["scaling"])),
+                np.full(self.ndofs[0], 1 / np.sqrt(scale_scalar)),
+                np.full(self.ndofs[1] + self.ndofs[2], np.sqrt(scale_scalar)),
             )
         )
-        rhs *= scale_factor
+        rhs *= scale_vector
 
-        rtol = data.get("rtol", 1e-5)
-        sol, info = solver.solve(rhs, rtol=rtol)
-        assert info == 0
+        sol, info = solver.solve(rhs)
+        assert info == 0, "Solver was unsuccessful"
 
-        sol *= scale_factor
-        u, r, p, _ = np.split(sol, np.cumsum(self.ndofs))
+        sol *= scale_vector
+        u, r, p = np.split(sol, np.cumsum(self.ndofs)[:-1])
 
         return u, r, p
 
     def recover_volumetric_change(
         self, solid_p: np.ndarray, fluid_p: np.ndarray, data: dict
     ) -> np.ndarray:
+        """
+        Post-process the volumetric change fromt he solid and fluid pressures
+        """
+
         return (solid_p + data["alpha"] * (fluid_p - self.ref_pressure)) / data[
             "lambda"
         ]
 
-    # ------------------------------- DEPRECATED -------------------------------
     def assemble_dual_var_map(self, scale_factor: float = 1.0) -> sps.sparray:
         """
         Assemble the matrix from (3.7) that maps primary to dual variables
         This function is only used for post-processing the stress
         """
-        # Extract cell-face pairs
-        cf = sps.csc_array(self.sd.cell_faces)
 
-        # Assemble the blocks of (3.7) where
-        # A_ij is the block coupling variable i and j.
-        mu_bar = self.harmonic_avg()
-        A_uu = -2 * mu_bar[:, None] / scale_factor * cf
-        A_uu = sps.block_diag([A_uu] * self.sd.dim)
+        # Precompute the operator that multiplies with the area
+        areas = sps.diags_array(self.sd.face_areas)
 
-        dk_mu = self.assemble_delta_mu_k()
-        A_pp = -dk_mu[:, None] * scale_factor * cf
-
-        Xi = self.assemble_xi()
-        Xi_tilde = self.convert_to_xi_tilde(Xi)
-
-        A_ru = self.assemble_R_Xi(Xi, True)
-        A_ur = self.assemble_R_Xi(Xi_tilde, False)
-
-        A_pr = self.assemble_n_Xi(Xi, True)
-        A_rp = self.assemble_n_Xi(Xi_tilde, False)
-
-        # Assembly by blocks
-        # fmt: off
-        A = sps.block_array(
-            [[A_uu, A_ur, A_rp], 
-             [A_ru, None, None], 
-             [A_pr, None, A_pp]]
-        )
-        # fmt: on
-
-        # Scaling with the face areas
-        face_areas = np.tile(self.sd.face_areas, self.ndof_per_cell)
-        A = face_areas[:, None] * A
-
-        return A
-
-    def assemble_R_Xi(
-        self,
-        Xi: sps.sparray,
-        u_to_r: bool = True,
-        div=None,
-    ) -> sps.sparray:
-        """
-        Compute the adjoint of the asymmetry operator, acting on Xi
-        """
-        if div is None:
-            nx, ny, nz = [n_i[:, None] * Xi for n_i in self.unit_normals]
-
-            if self.sd.dim == 3:
-                return -sps.block_array(
-                    [
-                        [None, -nz, ny],
-                        [nz, None, -nx],
-                        [-ny, nx, None],
-                    ]
-                )
-            elif self.sd.dim == 2:
-                if u_to_r:  # Maps from u to r
-                    return -sps.hstack([-ny, nx])
-                else:  # Maps from r to u
-                    return -sps.vstack([ny, -nx])
-            else:
-                raise NotImplementedError("Dimension must be 2 or 3.")
-        else:
-
-            def n(x: int):
-                return (div * self.unit_normals[x]) @ Xi
-
-            return -sps.block_array(
-                [
-                    [None, -n(2), n(1)],
-                    [n(2), None, -n(0)],
-                    [-n(1), n(0), None],
-                ]
-            )
-
-    def assemble_n_Xi(
-        self,
-        Xi: sps.sparray,
-        u_to_p: bool = True,
-        div=None,
-    ) -> sps.sparray:
-        """
-        Normal times the averaging operator Xi
-        """
-        if div is None:
-            normal_times_xi = [n_i[:, None] * Xi for n_i in self.unit_normals]
-        else:
-            normal_times_xi = [div @ (n_i[:, None] * Xi) for n_i in self.unit_normals]
-
-        if u_to_p:
-            return sps.hstack(normal_times_xi[: self.sd.dim])
-        else:  # Maps from p to u
-            return sps.vstack(normal_times_xi[: self.sd.dim])
-
-    def assemble_div(self) -> sps.sparray:
-        """
-        The divergence operator on the product space
-        """
-        return sps.block_diag([self.sd.cell_faces.T.tocsc()] * self.ndof_per_cell)
+        return self.assemble_second_order_terms(areas, scale_factor)
