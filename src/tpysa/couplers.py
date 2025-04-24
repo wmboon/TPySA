@@ -1,14 +1,16 @@
-import numpy as np
 import logging
-import tpysa
+
+import numpy as np
 from opm.io.ecl import EGrid
 from opm.io.schedule import Schedule
+
+import tpysa
 
 
 class Coupler:
     def set_mass_source(
         self, grid: EGrid, schedule: Schedule, current_step: int, variables: dict
-    ):
+    ) -> None:
         source = self.get_source(current_step).astype(float, copy=True)
 
         # Make into array if it is a scalar
@@ -25,7 +27,7 @@ class Coupler:
         # Update the keyword in the schedules
         schedule.insert_keywords(source_str)
 
-    def source_to_str(self, grid: EGrid, source: np.ndarray):
+    def source_to_str(self, grid: EGrid, source: np.ndarray) -> str:
         output = [""] * len(source)
         for c, s in enumerate(source):
             ijk = [i + 1 for i in grid.ijk_from_active_index(c)]
@@ -41,13 +43,13 @@ class Lagged(Coupler):
         self.source = np.zeros_like(volumes)
         self.str = "lagged"
 
-    def process_source(self, source, *args):
+    def process_source(self, source, *args) -> None:
         self.source = source
 
-    def get_source(self, *args):
+    def get_source(self, *args) -> None:
         return self.source
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         pass
 
 
@@ -64,7 +66,7 @@ class Iterative(Coupler):
         self.sqrd_norm_source = 0.0
         self.initialize_logger()
 
-    def initialize_logger(self):
+    def initialize_logger(self) -> None:
         logger = logging.getLogger()
         ch = logging.FileHandler(self.opmcase + ".ITER")
         ch.setLevel(logging.ERROR)
@@ -74,7 +76,7 @@ class Iterative(Coupler):
 
         logger.addHandler(ch)
 
-    def process_source(self, source, dt: float):
+    def process_source(self, source, dt: float) -> None:
         """
         Compares the computed source to the one from the previous space-time iteration
         """
@@ -82,7 +84,7 @@ class Iterative(Coupler):
         self.sqrd_diff_source += dt * np.dot(diff, self.volumes * diff)
         self.sqrd_norm_source += dt * np.dot(source, self.volumes * source)
 
-    def get_source(self, current_step):
+    def get_source(self, current_step: int) -> np.ndarray:
         """
         Extracts the source for (t_i, t_{i + 1}] from the vtu-file at t_{i + 1}
         """
@@ -91,7 +93,7 @@ class Iterative(Coupler):
         )
         return self.source
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         logging.error(
             "Source difference, abs: {:.2e}, rel: {:.4e}".format(
                 np.sqrt(self.sqrd_diff_source),

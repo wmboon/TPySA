@@ -1,14 +1,13 @@
 import numpy as np
 import scipy.sparse as sps
-
+import vtk
+from opm.io.ecl import EclFile, EGrid
 from opmcpg._cpggrid import (
+    UnstructuredGrid,
+    index_vector,
     process_cpg_grid,
     value_vector,
-    index_vector,
-    UnstructuredGrid,
 )
-from opm.io.ecl import EclFile, EGrid
-import vtk
 from vtkmodules.util.numpy_support import numpy_to_vtk
 
 

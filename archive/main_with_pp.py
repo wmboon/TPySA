@@ -1,8 +1,9 @@
-import scipy.sparse as sps
 import os
+
 import numpy as np
 import porepy as pp
 import pygeon as pg
+import scipy.sparse as sps
 
 from tpysa import TPSA
 

@@ -1,8 +1,9 @@
-from opm.simulators import GasWaterSimulator, BlackOilSimulator
 from typing import Union
 
+from opm.simulators import BlackOilSimulator, GasWaterSimulator
 
-def get_fluidstate_variables(sim: Union[GasWaterSimulator, BlackOilSimulator]):
+
+def get_fluidstate_variables(sim: Union[GasWaterSimulator, BlackOilSimulator]) -> dict:
     keys = [
         # "po",
         "pg",

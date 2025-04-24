@@ -1,5 +1,6 @@
-import numpy as np
 import os
+
+import numpy as np
 
 import tpysa
 
@@ -59,7 +60,8 @@ class FaultGrid(tpysa.Grid):
         # rhs = np.array([xpoint[2], ypoint[2]])
 
         # plane_grad = np.linalg.solve(system, rhs)
-        # plane_z = plane_grad @ (self.face_centers[:2, :] - origin[:2, None]) + origin[2]
+        # plane_z = plane_grad @ (self.face_centers[:2, :] - origin[:2, None])
+        # plane_z += origin[2]
 
         # top_half = self.face_centers[2, :] <= plane_z
 

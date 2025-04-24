@@ -1,10 +1,11 @@
 import os
+
+import numpy as np
+from vtkmodules.numpy_interface import dataset_adapter as dsa
 from vtkmodules.vtkIOXML import (
     vtkXMLUnstructuredGridReader,
     vtkXMLUnstructuredGridWriter,
 )
-import numpy as np
-from vtkmodules.numpy_interface import dataset_adapter as dsa
 
 
 def write_vtk(

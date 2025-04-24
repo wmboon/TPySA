@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# Project information.
+[project]
+name = "tpysa"
+version = "0.1"
+description = "A Python implementation of TPSA"
+readme = "Readme.md"
+license = { text = "GPL" }
+maintainers = [
+    { name = "Wietse M. Boon", email = "wibo@norceresearch.no" },
+]
+urls = { "Homepage" = "https://github.com/wmboon/TPySA" }
+classifiers = [
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License (GPL)",
+    "Operating System :: OS Independent"
+]
+
+# Information for the build system.
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"tpysa" = [
+    "py.typed",
+]
+
+# Static analysis.
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E501"]
+ignore = [
+    "E731",  # do not assign a lambda expression, use a def
+    "E266",  # too many leading '#' for block comment
+]
+exclude = [
+    "src/tpysa/__init__.py",
+]
+
+# MyPy
+[[tool.mypy.overrides]]
+module = "tests.*"
+disable_error_code = ["import-untyped"]

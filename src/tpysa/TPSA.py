@@ -1,8 +1,10 @@
+import logging
+import time
+
 import numpy as np
 import scipy.sparse as sps
-import time
+
 import tpysa
-import logging
 
 
 class TPSA:
@@ -84,7 +86,7 @@ class TPSA:
         A[1, 0], A[2, 0] = self.assemble_off_diagonals(Xi, div_F, True)
 
         # The blocks in the first row depend on the complementary operator Xi_tilde
-        Xi_tilde = self.assemble_xi_tilde(Xi)
+        Xi_tilde = self.convert_to_xi_tilde(Xi)
         A[0, 1], A[0, 2] = self.assemble_off_diagonals(Xi_tilde, div_F, False)
 
         A[2, 2] = -div_F * (0.5 * self.dk_mu * scale_factor) @ self.sd.cell_faces
@@ -130,20 +132,22 @@ class TPSA:
                 # Recompute the deltas with the updated cell center
                 delta_ki[cf_pairs] = compute_delta_ki(cf_pairs)
 
-            logging.debug(
-                "{} extra-cellular centers remain\n".format(np.sum(delta_ki < 0))
-            )
-        if np.any(delta_ki < 0):
-            # Report on the first problematic cell for visual inspection
-            first_cell = cells[np.argmax(delta_ki <= 0)]
-            ijk = self.sd.ijk_from_active_index(first_cell)
-            glob_ind = self.sd.global_index(*ijk)
+            if np.any(delta_ki < 0):
+                # Report on the first problematic cell for visual inspection
+                first_cell = cells[np.argmax(delta_ki <= 0)]
+                ijk = self.sd.ijk_from_active_index(first_cell)
+                glob_ind = self.sd.global_index(*ijk)
 
-            logging.warning(
-                "Cell with global index {} has an extra-cellular center.\n".format(
-                    glob_ind
+                logging.debug(
+                    "{} extra-cellular centers remain".format(np.sum(delta_ki < 0))
                 )
-            )
+                logging.warning(
+                    "Cell with global index {} has an extra-cellular center.\n".format(
+                        glob_ind
+                    )
+                )
+            else:
+                logging.debug("Fixed all cell-centers\n")
 
         return mu[cells] / delta_ki
 
@@ -158,15 +162,18 @@ class TPSA:
 
         # Spring bc
         if np.any(self.sd.tags["sprng_bdry"]):
-            faces = np.hstack((faces, np.flatnonzero(self.sd.tags["sprng_bdry"])))
-            mu_dk = np.hstack((mu_dk, self.bdry_mu_delta[self.sd.tags["sprng_bdry"]]))
+            faces = np.concatenate((faces, np.flatnonzero(self.sd.tags["sprng_bdry"])))
+            mu_dk = np.concatenate(
+                (mu_dk, self.bdry_mu_delta[self.sd.tags["sprng_bdry"]])
+            )
 
         dk_mu = 1 / (np.bincount(faces, weights=mu_dk))
 
         # Displacement bc
         dk_mu[self.sd.tags["displ_bdry"]] = 0
 
-        # Traction bc are handled naturally as a subset of spring_bdry with zero spring constant
+        # Traction bc are handled naturally as a subset of spring_bdry
+        # with zero spring constant
 
         return dk_mu
 
@@ -218,21 +225,20 @@ class TPSA:
 
         return Xi
 
-    def assemble_xi_tilde(self, Xi: sps.sparray) -> sps.sparray:
+    def convert_to_xi_tilde(self, Xi: sps.sparray) -> sps.sparray:
         """
         Compute the converse averaging operator Xi_tilde
+        This is an in-place operation to limit memory
         """
-        Xi_tilde = Xi.copy()
-        Xi_tilde.data = 1 - Xi_tilde.data
-
-        return Xi_tilde
+        Xi.data = 1 - Xi.data
+        return Xi
 
     def assemble_off_diagonals(
         self,
         Xi: sps.sparray,
         div_F: sps.sparray,
         map_from_u: bool = True,
-    ) -> sps.sparray:
+    ) -> tuple[sps.sparray, sps.sparray]:
         if self.sd.dim == 3:
             nx, ny, nz = [(div_F * ni) @ Xi for ni in self.unit_normals]
 
@@ -270,13 +276,14 @@ class TPSA:
 
     def assemble_isotropic_stress_source(self, data: dict, w: np.ndarray) -> np.ndarray:
         """
-        Assemble the right-hand side for a given isotropic stress field w, like a fluid pressure
+        Assemble the right-hand side for a given isotropic stress field w,
+        like a fluid pressure
         """
         rhs_u = np.zeros(self.ndofs[0])
         rhs_r = np.zeros(self.ndofs[1])
         rhs_p = self.sd.cell_volumes * data["alpha"] / data["lambda"] * w
 
-        return np.hstack((rhs_u, rhs_r, rhs_p))
+        return np.concatenate((rhs_u, rhs_r, rhs_p))
 
     def assemble_gravity_force(self, data: dict) -> np.ndarray:
         w = np.zeros(self.ndofs[0])
@@ -301,7 +308,7 @@ class TPSA:
         rhs_r = np.zeros(self.ndofs[1])
         rhs_p = np.zeros(self.ndofs[2])
 
-        return np.hstack((rhs_u, rhs_r, rhs_p))
+        return np.concatenate((rhs_u, rhs_r, rhs_p))
 
     def solve(
         self, data: dict, pressure_source: np.ndarray, solver: tpysa.Solver
@@ -309,7 +316,7 @@ class TPSA:
         diff_pressure = pressure_source - self.ref_pressure
         rhs = self.assemble_isotropic_stress_source(data, diff_pressure)
 
-        scale_factor = np.hstack(
+        scale_factor = np.concatenate(
             (
                 np.full(self.ndofs[0], 1 / np.sqrt(data["scaling"])),
                 np.full(self.ndofs[1] + self.ndofs[2], np.sqrt(data["scaling"])),
@@ -352,7 +359,7 @@ class TPSA:
         A_pp = -dk_mu[:, None] * scale_factor * cf
 
         Xi = self.assemble_xi()
-        Xi_tilde = self.assemble_xi_tilde(Xi)
+        Xi_tilde = self.convert_to_xi_tilde(Xi)
 
         A_ru = self.assemble_R_Xi(Xi, True)
         A_ur = self.assemble_R_Xi(Xi_tilde, False)

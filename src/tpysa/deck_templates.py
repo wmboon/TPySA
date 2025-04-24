@@ -1,5 +1,5 @@
-import numpy as np
 import mako.template
+import numpy as np
 
 
 def generate_deck_from_template(template_file: str, output_file: str, data: dict):

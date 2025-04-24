@@ -1,14 +1,13 @@
-import numpy as np
+import logging
 import os
 
-from opm.simulators import BlackOilSimulator
-from opm.io.parser import Parser
+import numpy as np
 from opm.io.ecl_state import EclipseState
+from opm.io.parser import Parser
 from opm.io.schedule import Schedule
 from opm.io.summary import SummaryConfig
+from opm.simulators import BlackOilSimulator
 from opm.util import EModel
-
-import logging
 
 import tpysa
 
@@ -38,7 +37,7 @@ class Biot_Model:
         self.vtk_reset = self.data.get("vtk_reset", False)
         self.initialize_logger()
 
-    def initialize_logger(self):
+    def initialize_logger(self) -> None:
         # Logging the debug info
         logging.basicConfig(
             format="%(message)s",
@@ -57,13 +56,13 @@ class Biot_Model:
 
         logger.addHandler(ch)
 
-    def simulate(self):
+    def simulate(self) -> None:
         self.initialize()
         self.run()
 
-    def initialize(self):
+    def initialize(self) -> None:
         # Compute the rock_biot scaling in units of 1/Pa
-        self.compute_rock_biot()
+        self.data["rock_biot"] = self.compute_rock_biot()
 
         # Generate and parse deck
         self.generate_deck()
@@ -133,7 +132,7 @@ class Biot_Model:
         if self.vtk_reset:
             self.zero_out_vol_source()
 
-    def zero_out_vol_source(self):
+    def zero_out_vol_source(self) -> None:
         num_cells = self.grid.num_cells
         num_steps = len(self.schedule.reportsteps)
 
@@ -143,7 +142,7 @@ class Biot_Model:
             )
         logging.error("Reset ON: Zeroed out the source terms in the vtu files")
 
-    def run(self):
+    def run(self) -> None:
         logging.debug("\nStart of Simulation")
 
         ## Initial conditions
@@ -164,7 +163,7 @@ class Biot_Model:
         self.coupler.cleanup()
         self.sim.step_cleanup()
 
-    def perform_one_time_step(self, solid_p0: np.ndarray):
+    def perform_one_time_step(self, solid_p0: np.ndarray) -> np.ndarray:
         if not self.vtk_writer_is_python:
             logging.debug("Python coupling deactivated.")
             return solid_p0
@@ -212,7 +211,7 @@ class Biot_Model:
         rotat: np.ndarray,
         solid_p: np.ndarray,
         vol_source: np.ndarray,
-    ):
+    ) -> None:
         vol_change = self.disc.recover_volumetric_change(solid_p, fluid_p, self.data)
         diff_p = fluid_p - self.data["ref_pressure"]
         sol_dict = {
@@ -227,14 +226,13 @@ class Biot_Model:
         }
         tpysa.write_vtk(sol_dict, self.opmcase, current_step, self.grid.num_cells)
 
-    def compute_rock_biot(self):
-        self.data["rock_biot"] = (
-            self.data["alpha"] * self.data["alpha"] / self.data["lambda"]
-        )
+    def compute_rock_biot(self) -> float:
+        rock_biot = self.data["alpha"] * self.data["alpha"] / self.data["lambda"]
+        assert isinstance(rock_biot, np.ScalarType)
 
-        assert isinstance(self.data["rock_biot"], np.ScalarType)
+        return rock_biot
 
-    def compute_spring_constant(self):
+    def compute_spring_constant(self) -> np.ndarray:
         mu_delta_scalar = self.data.get("bdry_mu_over_delta")
 
         if mu_delta_scalar is None:
@@ -248,7 +246,7 @@ class Biot_Model:
 
         return mu_delta_vec
 
-    def manage_data(self, num_cells: int):
+    def manage_data(self, num_cells: int) -> None:
         """
         Ensure the data entries are cell-wise
         """
@@ -258,11 +256,11 @@ class Biot_Model:
             if isinstance(data[key], np.ScalarType):
                 data[key] = np.full(num_cells, data[key])
 
-    def generate_deck(self):
+    def generate_deck(self) -> None:
         dir_name, deck_name = os.path.split(self.deck_file)
         template_file = os.path.join(dir_name, "template", deck_name)
 
         tpysa.generate_deck_from_template(template_file, self.deck_file, self.data)
 
-    def operate_wells(self, schedule: Schedule):
+    def operate_wells(self, schedule: Schedule) -> None:
         pass

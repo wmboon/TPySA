@@ -1,9 +1,10 @@
+import logging
+import time
+
 import numpy as np
+import pyamg
 import scipy.sparse as sps
 import scipy.sparse.linalg as spla
-import time
-import pyamg
-import logging
 
 
 class Solver:
