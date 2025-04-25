@@ -1,5 +1,3 @@
-import os
-
 import numpy as np
 
 import tpysa
@@ -7,20 +5,19 @@ import tpysa
 
 def main():
     ## Input: Model and discretization parameters
-    data = {
-        "mu": 3.5e9,  # 3.5 GPa
-        "lambda": 4e9,  # 4.0 GPa
-        "alpha": 0.87,  # O(1)
-        "inj_rate": 1e3,  # sm3/day
-        "n_time": 30,
-        "n_total_cells": 20 * 15 * 9,
-        "vtk_writer": "Python",  # First run with "OPM", then "Python"
-    }
+    data = tpysa.default_data()
+    data.update(
+        {
+            "inj_rate": 1e3,  # sm3/day
+            "n_time": 30,
+            "n_total_cells": 20 * 15 * 9,
+            "vtk_writer": "Python",  # First run with "OPM", then "Python"
+        }
+    )
     coupler = tpysa.Lagged
 
     case_str = "FAULT"
-    dir_name = os.path.dirname(__file__)
-    opmcase = os.path.join(dir_name, case_str)
+    opmcase = tpysa.opmcase_from_main(__file__, case_str)
 
     model = FaultBiot_Model(opmcase, data, FaultGrid, CouplerType=coupler)
     model.simulate()

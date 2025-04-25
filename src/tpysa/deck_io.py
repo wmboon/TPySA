@@ -1,5 +1,12 @@
+import os
+
 import mako.template
 import numpy as np
+
+
+def opmcase_from_main(main_file: str, case_str: str):
+    dir_name = os.path.dirname(main_file)
+    return os.path.join(dir_name, case_str)
 
 
 def generate_deck_from_template(template_file: str, output_file: str, data: dict):

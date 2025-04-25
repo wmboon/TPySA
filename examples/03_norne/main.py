@@ -1,5 +1,3 @@
-import os
-
 from opm.simulators import GasWaterSimulator
 
 import tpysa
@@ -7,19 +5,17 @@ import tpysa
 
 def main():
     ## Input: Model and discretization parameters
-    data = {
-        "mu": 3.5e9,  # 3.5 GPa
-        "lambda": 4e9,  # 4.0 GPa
-        "alpha": 0.87,  # O(1)
-        "n_total_cells": 46 * 112 * 22,
-        "vtk_writer": "Python",  # First run with "OPM", then "Python"
-    }
-
+    data = tpysa.default_data()
+    data.update(
+        {
+            "n_total_cells": 46 * 112 * 22,
+            "vtk_writer": "Python",  # First run with "OPM", then "Python"
+        }
+    )
     coupler = tpysa.Lagged
 
     case_str = "NORNE"
-    dir_name = os.path.dirname(__file__)
-    opmcase = os.path.join(dir_name, case_str)
+    opmcase = tpysa.opmcase_from_main(__file__, case_str)
 
     model = tpysa.Biot_Model(
         opmcase,

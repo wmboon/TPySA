@@ -7,23 +7,22 @@ import tpysa
 
 def main(nx=10):
     ## Input: Model and discretization parameters
-    data = {
-        "mu": 3.5e9,  # 3.5 GPa
-        "lambda": 4e9,  # 4.0 GPa
-        "alpha": 0.87,  # O(1)
-        "inj_rate": 0.05,  # sm3/day
-        "nx": nx,
-        "n_time": 50,
-        "n_total_cells": nx**3,
-        "vtk_writer": "Python",  # First run with "OPM", then "Python"
-        "vtk_reset": False,
-    }
+    data = tpysa.default_data()
+    data.update(
+        {
+            "inj_rate": 0.05,  # sm3/day
+            "nx": nx,
+            "n_time": 50,
+            "n_total_cells": nx**3,
+            "vtk_writer": "Python",  # First run with "OPM", then "Python"
+            "vtk_reset": False,
+        }
+    )
     coupler = tpysa.Iterative
 
     ## Create a n x n x n Cartesian grid
     case_str = "GRID_" + str(nx)
-    dir_name = os.path.dirname(__file__)
-    opmcase = os.path.join(dir_name, case_str)
+    opmcase = tpysa.opmcase_from_main(__file__, case_str)
 
     model = CartBiot_Model(
         opmcase,
