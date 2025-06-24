@@ -186,7 +186,12 @@ class Biot_Model:
             delta_ps = (solid_p - solid_p0) / dt
 
             # Compute the source in the mass balance equation
-            vol_source = -self.data["alpha"] / self.data["lambda"] * delta_ps
+            vol_source = (
+                -self.data["alpha"]
+                / self.data["lambda"]
+                * delta_ps
+                * self.grid.cell_volumes
+            )
 
             # Let the coupler process and set the mass source
             self.coupler.process_source(vol_source, dt)

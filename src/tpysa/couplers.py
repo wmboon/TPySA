@@ -81,8 +81,8 @@ class Iterative(Coupler):
         Compares the computed source to the one from the previous space-time iteration
         """
         diff = source - self.source
-        self.sqrd_diff_source += dt * np.dot(diff, self.volumes * diff)
-        self.sqrd_norm_source += dt * np.dot(source, self.volumes * source)
+        self.sqrd_diff_source += dt * np.sum(diff * self.volumes * diff)
+        self.sqrd_norm_source += dt * np.sum(source * self.volumes * source)
 
     def get_source(self, current_step: int) -> np.ndarray:
         """
