@@ -10,6 +10,10 @@ from opmcpg._cpggrid import (
 )
 from vtkmodules.util.numpy_support import numpy_to_vtk
 
+""" 
+This code is based on the opmcpg package
+"""
+
 
 class Grid(EGrid):
     """
@@ -50,7 +54,8 @@ class Grid(EGrid):
             dims_cpp, coord_cpp, zcorn_cpp, actnum_cpp, minpv, result_fname
         )
 
-        self.dim = 3  # unstr_grid.dimensions
+        assert unstr_grid.dimensions == 3
+        self.dim = 3
 
         self.num_cells = unstr_grid.number_of_cells
         self.num_faces = unstr_grid.number_of_faces
@@ -74,6 +79,10 @@ class Grid(EGrid):
         self.actnum = self.actnum.astype(bool)
 
     def compute_face_nodes(self, unstr_grid: UnstructuredGrid) -> sps.csc_array:
+        """
+        Create a csc_array such that (i, j) = True if node i is connected to face j
+        """
+
         indptr = scalars_to_np(unstr_grid.face_nodepos)[: self.num_faces + 1]
         indices = scalars_to_np(unstr_grid.face_nodes)[: indptr[-1]]
         data = np.ones_like(indices, dtype=bool)
@@ -81,6 +90,11 @@ class Grid(EGrid):
         return sps.csc_array((data, indices, indptr))
 
     def compute_cell_faces(self, unstr_grid: UnstructuredGrid) -> sps.csc_array:
+        """
+        Create a csc_array such that (i, j) = ±1 if face i is connected to cell j.
+        The value is +1 if the normal to face i is outward with respect to cell j.
+        """
+
         face_cells = unstr_grid.face_cells[: self.num_faces * 2]
         face_cells = np.reshape(face_cells, (self.num_faces, 2))
 
@@ -102,19 +116,19 @@ class Grid(EGrid):
         )
 
         self.tags["sprng_bdry"] = self.tags["domain_boundary_faces"].copy()
-        self.tags["displ_bdry"] = np.zeros_like(self.tags["domain_boundary_faces"])
+        self.tags["tract_bdry"] = np.zeros_like(self.tags["domain_boundary_faces"])
 
     def check_boundary_tags(self):
-        # Include the traction boundaries in the spring boundary tag
-        if "tract_bdry" in self.tags:
+        # Include the displacement boundaries in the spring boundary tag
+        if "displ_bdry" in self.tags:
             self.tags["sprng_bdry"] = np.logical_or(
-                self.tags["sprng_bdry"], self.tags["tract_bdry"]
+                self.tags["sprng_bdry"], self.tags["displ_bdry"]
             )
 
         # Check if all boundary faces are tagged exactly once
-        coverage_check = np.logical_or(self.tags["sprng_bdry"], self.tags["displ_bdry"])
+        coverage_check = np.logical_or(self.tags["sprng_bdry"], self.tags["tract_bdry"])
         assert np.all(coverage_check == self.tags["domain_boundary_faces"])
-        assert ~np.any(np.logical_and(self.tags["sprng_bdry"], self.tags["displ_bdry"]))
+        assert ~np.any(np.logical_and(self.tags["sprng_bdry"], self.tags["tract_bdry"]))
 
     def get_vtk(self) -> vtk.vtkUnstructuredGrid:
         if not hasattr(self, "vtk_grid"):

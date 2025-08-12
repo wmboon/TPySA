@@ -109,7 +109,7 @@ class Biot_Model:
 
         # Manage the physical parameters
         self.manage_data(self.grid.num_cells)
-        self.data["bdry_mu_over_delta"] = self.compute_spring_constant()
+        self.data["inv_spring_constant"] = self.compute_inv_spring_constant()
 
         ## Initialize Mechanics
         self.data["ref_pressure"] = self.sim.get_primary_variable("pressure")
@@ -236,17 +236,17 @@ class Biot_Model:
 
         return rock_biot
 
-    def compute_spring_constant(self) -> np.ndarray:
-        mu_delta_scalar = self.data.get("bdry_mu_over_delta")
+    def compute_inv_spring_constant(self) -> np.ndarray:
+        delta_over_mu = self.data.get("inv_spring_constant")
 
-        if mu_delta_scalar is None:
+        if delta_over_mu is None:
             delta_typ = 0.05 * (self.grid.nodes[2].max() - self.grid.nodes[2].min())
             mu_typ = np.mean(self.data["mu"])
-            mu_delta_scalar = mu_typ / delta_typ
+            delta_over_mu = delta_typ / mu_typ
 
         mu_delta_vec = np.zeros(self.grid.num_faces)
-        mu_delta_vec[self.grid.tags["sprng_bdry"]] = mu_delta_scalar
-        mu_delta_vec[self.grid.tags.get("tract_bdry", [])] = 0
+        mu_delta_vec[self.grid.tags["sprng_bdry"]] = delta_over_mu
+        mu_delta_vec[self.grid.tags.get("displ_bdry", [])] = 0
 
         return mu_delta_vec
 

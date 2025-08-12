@@ -41,10 +41,12 @@ class TPSA:
         data["scaling"] = np.mean(data["mu"])
 
         # Extract the spring constant
-        self.bdry_mu_delta = data.get("bdry_mu_over_delta", np.zeros(self.sd.num_faces))
+        self.delta_bdry_over_mu = data.get(
+            "inv_spring_constant", np.zeros(self.sd.num_faces)
+        )
 
-        # In order to allow for a different scaling, we precompute mu/dk here
-        self.mu_delta_ki = self.assemble_mu_delta_ki(data["mu"])
+        # We precompute delta_k^i / mu here
+        self.delta_ki_over_mu = self.assemble_delta_ki_over_mu(data["mu"])
         self.dk_mu = self.assemble_delta_mu_k()
 
         # Generate the first order terms in (3.9)
@@ -100,9 +102,9 @@ class TPSA:
         # Assembly by blocks
         return sps.block_array(A).tocsc()
 
-    def assemble_mu_delta_ki(self, mu: np.ndarray) -> np.ndarray:
+    def assemble_delta_ki_over_mu(self, mu: np.ndarray) -> np.ndarray:
         """
-        Compute mu / delta_k^i from (2.1) for every physical face-cell pair.
+        Compute delta_k^i / mu from (2.1) for every physical face-cell pair.
         Boundary conditions are handled later
         """
 
@@ -152,7 +154,7 @@ class TPSA:
             else:
                 logging.debug("Fixed all cell-centers\n")
 
-        return mu[cells] / delta_ki
+        return delta_ki / mu[cells]
 
     def assemble_delta_mu_k(self) -> np.ndarray:
         """
@@ -163,56 +165,51 @@ class TPSA:
         """
 
         faces, _, _ = self.find_cf
-        mu_dk = self.mu_delta_ki
+        dk_mu = self.delta_ki_over_mu
 
         # Incorporate the spring bc by extending the vectors
         faces = np.concatenate((faces, np.flatnonzero(self.sd.tags["sprng_bdry"])))
-        mu_dk = np.concatenate((mu_dk, self.bdry_mu_delta[self.sd.tags["sprng_bdry"]]))
+        dk_mu = np.concatenate(
+            (dk_mu, self.delta_bdry_over_mu[self.sd.tags["sprng_bdry"]])
+        )
 
-        dk_mu = 1 / (np.bincount(faces, weights=mu_dk))
+        # Compute the reciprocal
+        mu_dk = np.empty_like(dk_mu)
+        positive_del = dk_mu != 0
 
-        # Displacement bc
-        dk_mu[self.sd.tags["displ_bdry"]] = 0
+        mu_dk[positive_del] = 1 / dk_mu[positive_del]
+        mu_dk[~positive_del] = np.inf
 
-        # Traction bc are handled naturally as a subset of spring_bdry
-        # with zero spring constant
+        delta_mu_k = 1 / np.bincount(faces, weights=mu_dk)
 
-        return dk_mu
+        # Displacement boundaries have infinite mu/delta
+        # Traction bc are handled naturally because mu/delta = 0 there.
+
+        return delta_mu_k
 
     def harmonic_avg(self) -> np.ndarray:
         """
         Compute the harmonic average of mu from (3.5), divided by delta_k, at each face
         """
 
-        # The numerator
-        #   for interior faces, it takes the product of the two mu / delta
-        #   for boundary faces, it computes (mu / delta)^2
+        faces, _, _ = self.find_cf
+        dk_mu = self.delta_ki_over_mu
 
-        faces, cells, _ = self.find_cf
-
-        prod = sps.csc_array((self.mu_delta_ki, (cells, faces)))
-        prod.sort_indices()
-        numerator = prod.data[prod.indptr[:-1]] * prod.data[prod.indptr[1:] - 1]
-
-        # The denominator
-        #   for interior faces, it takes the sum of the two mu / delta
-        #   for boundary faces, it computes mu / delta
-
-        denominator = np.bincount(faces, weights=self.mu_delta_ki)
-
-        mu_bar_delta = numerator / denominator
-
-        # Displacement bc are handled naturally
-
-        # Spring bc
-        mask = self.sd.tags["sprng_bdry"]
-        mu_bar_delta[mask] *= self.bdry_mu_delta[mask] / (
-            self.bdry_mu_delta[mask] + mu_bar_delta[mask]
+        # Incorporate the spring bc by extending the vectors
+        faces = np.concatenate((faces, np.flatnonzero(self.sd.tags["sprng_bdry"])))
+        dk_mu = np.concatenate(
+            (dk_mu, self.delta_bdry_over_mu[self.sd.tags["sprng_bdry"]])
         )
 
-        # This also takes care of traction bc because bdry_mu_delta is zero there
+        mu_bar_over_dk = 1 / (np.bincount(faces, weights=dk_mu))
 
-        return mu_bar_delta
+        # Traction bc
+        mu_bar_over_dk[self.sd.tags["tract_bdry"]] = 0
+
+        # Displacement bc are handled naturally as a subset of spring_bdry
+        # with zero (inverse) spring constant
+
+        return mu_bar_over_dk
 
     def assemble_xi(self) -> sps.sparray:
         """
@@ -220,10 +217,10 @@ class TPSA:
         """
 
         faces, cells, _ = self.find_cf
-        Xi = sps.csc_array((self.mu_delta_ki * self.dk_mu[faces], (faces, cells)))
+        Xi = sps.csc_array((self.dk_mu[faces] / self.delta_ki_over_mu, (faces, cells)))
 
         # Displacement bc are handled by dk_mu = 0
-        # Traction bc are handled since dk_mu * mu_dk = 1
+        # Traction bc are handled since dk_mu * mu / delta_ki = 1
         # Spring bc are handled because the spring constant is in dk_mu
 
         return Xi
@@ -340,6 +337,32 @@ class TPSA:
         """
         diff_pressure = pressure_source - self.ref_pressure
         rhs = self.assemble_isotropic_stress_source(data, diff_pressure)
+
+        scale_scalar = data.get("scaling", 1.0)
+        scale_vector = np.concatenate(
+            (
+                np.full(self.ndofs[0], 1 / np.sqrt(scale_scalar)),
+                np.full(self.ndofs[1] + self.ndofs[2], np.sqrt(scale_scalar)),
+            )
+        )
+        rhs *= scale_vector
+
+        sol, info = solver.solve(rhs)
+        assert info == 0, "Solver was unsuccessful"
+
+        sol *= scale_vector
+        u, r, p = np.split(sol, np.cumsum(self.ndofs)[:-1])
+
+        return u, r, p
+
+    def solve_body_force(
+        self, data: dict, body_force: np.ndarray, solver: tpysa.Solver
+    ) -> tuple[np.ndarray]:
+        """
+        Solve the system, using the scaling given in data["scaling"]
+        """
+
+        rhs = self.assemble_body_force(body_force)
 
         scale_scalar = data.get("scaling", 1.0)
         scale_vector = np.concatenate(
