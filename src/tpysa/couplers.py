@@ -95,7 +95,7 @@ class Iterative(Coupler):
 
     def cleanup(self) -> None:
         logging.error(
-            "Source difference, abs: {:.2e}, rel: {:.4e}".format(
+            "Source difference, abs: {:.2e}, rel: {:.2e}".format(
                 np.sqrt(self.sqrd_diff_source),
                 np.sqrt(self.sqrd_diff_source / self.sqrd_norm_source),
             )
