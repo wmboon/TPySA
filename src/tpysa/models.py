@@ -199,7 +199,10 @@ class Biot_Model:
             if current_step < len(reportsteps) - 1:
                 var_dict = tpysa.get_fluidstate_variables(self.sim)
                 self.coupler.set_mass_source(
-                    self.grid, self.schedule, current_step, var_dict
+                    self.grid,
+                    self.schedule,
+                    current_step,
+                    var_dict["rho_w"],
                 )
 
             # Output solution at time t_i and save the mass source for (t_{i - 1}, t_i]

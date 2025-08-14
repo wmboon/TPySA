@@ -65,7 +65,6 @@ class CartBiot_Model(tpysa.Biot_Model):
         logging.debug("\nReport step {}".format(current_step))
 
         reportsteps = self.schedule.reportsteps
-        dt = (reportsteps[current_step] - reportsteps[current_step - 1]).total_seconds()
 
         # Extract current fluid pressure
         fluid_p = self.sim.get_primary_variable("pressure")
@@ -78,7 +77,7 @@ class CartBiot_Model(tpysa.Biot_Model):
         if current_step < len(reportsteps) - 1:
             var_dict = tpysa.get_fluidstate_variables(self.sim)
             self.coupler.set_mass_source(
-                self.grid, self.schedule, current_step, var_dict
+                self.grid, self.schedule, current_step, var_dict["rho_w"]
             )
 
         fluid_p = fluid_p - self.data["ref_pressure"]
@@ -105,13 +104,6 @@ class CartBiot_Model(tpysa.Biot_Model):
         err_r = norm(rotat - rotat_ex) / norm(rotat_ex)
         err_ps = norm(solid_p)
         err_pf = norm(fluid_p - p_ex) / norm(p_ex)
-
-        logging.warning(
-            "nx: {:}, displacement error {:.2e}".format(self.data["nx"], err_u)
-        )
-        logging.warning("nx: {:}, rotation error {:.2e}".format(self.data["nx"], err_r))
-        logging.warning("nx: {:}, p_solid error {:.2e}".format(self.data["nx"], err_ps))
-        logging.warning("nx: {:}, p_fluid error {:.2e}".format(self.data["nx"], err_pf))
 
         self.coupler.save_errs(self.data["nx"], (err_u, err_r, err_ps, err_pf))
 

@@ -18,13 +18,26 @@ h_init = np.prod(errs[0]) ** (1 / errs.shape[1])
 h_squared = 1 / np.array(n_x) ** 2
 h_squared *= h_init / h_squared.max()
 
+plt.rcParams.update({"font.size": 13})
+
 plt.loglog(n_x, errs, "*-", n_x, h_squared, "--")
-plt.legend(("Displacement", "Rotation", "Solid pressure", "Fluid pressure", "O($h^2$)"))
+plt.legend(
+    (
+        "Solid displacement",
+        "Solid rotation",
+        "Solid pressure",
+        "Fluid pressure",
+        "O($h^2$)",
+    )
+)
 plt.grid(True, which="both", ls="-", color="0.65")
 
 ax = plt.gca()
 ax.set_xlabel("$1 / h$")
 ax.set_ylabel("Relative $L^2$ error")
+ax.set_box_aspect(1)
 
-plt.savefig(os.path.join(dir_name, "convergence_biot.svg"))
+fig = plt.gcf()
+fig.set_size_inches(7, 7)
+plt.savefig(os.path.join(dir_name, "convergence_biot.pdf"), bbox_inches="tight")
 plt.show()

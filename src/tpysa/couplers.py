@@ -9,7 +9,7 @@ import tpysa
 
 class Coupler:
     def set_mass_source(
-        self, grid: EGrid, schedule: Schedule, current_step: int, variables: dict
+        self, grid: EGrid, schedule: Schedule, current_step: int, rho_w: np.ndarray
     ) -> None:
         source = self.get_source(current_step).astype(float, copy=True)
 
@@ -19,7 +19,7 @@ class Coupler:
 
         # Convert units from m3/s to kg/day
         source *= 24 * 60 * 60  # from 1/second to 1/day
-        source *= variables["rho_w"]  # from m^3 to kg
+        source *= rho_w  # from m^3 to kg
 
         # Convert to string
         source_str = self.source_to_str(grid, source)
