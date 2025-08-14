@@ -6,16 +6,16 @@ from opm.simulators import BlackOilSimulator, GasWaterSimulator
 def get_fluidstate_variables(sim: Union[GasWaterSimulator, BlackOilSimulator]) -> dict:
     keys = [
         # "po",
-        "pg",
-        "pw",
+        # "pg",
+        # "pw",
         "rho_w",
-        "rho_g",
+        # "rho_g",
         # "rho_o",
         # "Rs",
         # "Rv",
         "Sw",
         # "So",
-        "Sg",
+        # "Sg",
         "T",
     ]
 
