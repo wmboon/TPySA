@@ -14,12 +14,12 @@ n_x = err_table[:, 0]
 errs = err_table[:, 1:]
 
 
-h_max = np.max(errs)
+h_init = np.prod(errs[0]) ** (1 / errs.shape[1])
 h_squared = 1 / np.array(n_x) ** 2
-h_squared *= h_max / h_squared.max()
+h_squared *= h_init / h_squared.max()
 
 plt.loglog(n_x, errs, "*-", n_x, h_squared, "--")
-plt.legend(("displacement", "rotation", "solid pressure", "fluid pressure", "O($h^2$)"))
+plt.legend(("Displacement", "Rotation", "Solid pressure", "Fluid pressure", "O($h^2$)"))
 plt.grid(True, which="both", ls="-", color="0.65")
 
 ax = plt.gca()

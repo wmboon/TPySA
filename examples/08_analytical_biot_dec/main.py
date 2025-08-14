@@ -9,7 +9,7 @@ from true_sol import p_func, source_func, u_func, body_force_func, r_func
 from opm.simulators import OnePhaseSimulator
 
 
-def main(nx=10):
+def main(nx=10, write_errors=False):
     ## Input: Model and discretization parameters
     data = tpysa.default_data()
     data.update(
@@ -137,18 +137,21 @@ class ConvergenceLagged(tpysa.Lagged):
         self.nx = nx
 
     def cleanup(self):
-        dir_name = os.path.dirname(__file__)
-        with open(os.path.join(dir_name, "errs.txt"), "a") as f:
-            str_tuple = [str(self.nx)]
-            str_tuple.extend(["{:.2e}".format(err) for err in self.errs])
-            f.write(" ".join(str_tuple) + "\n")
+        if write_errors == True:
+            dir_name = os.path.dirname(__file__)
+            with open(os.path.join(dir_name, "errs.txt"), "a") as f:
+                str_tuple = [str(self.nx)]
+                str_tuple.extend(["{:.4e}".format(err) for err in self.errs])
+                f.write(" ".join(str_tuple) + "\n")
 
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         nx = int(sys.argv[1])
+        write_errors = True
 
     else:
         nx = 10
+        write_errors = False
 
-    main(nx)
+    main(nx, write_errors)
