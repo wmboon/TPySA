@@ -25,3 +25,4 @@ examples/07_troll_full/*
 *.INFO
 *.ITER
 PAT-cluster.txt
+*.svg
