@@ -59,9 +59,13 @@ def read_source_from_vtk(
     opmcase: str,
     current_step: int,
     num_cells: int,
+    read_truth: bool = False,
 ):
     file_name = recover_file_name(opmcase, current_step)
     dataset = extract_dataset(file_name)
+
+    if read_truth and "true_vol_source" in dataset.CellData.keys():
+        return np.array(dataset.CellData["true_vol_source"])
 
     if "vol_source" in dataset.CellData.keys():
         return np.array(dataset.CellData["vol_source"])

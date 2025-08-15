@@ -35,6 +35,7 @@ class Biot_Model:
         vtk_writer = self.data.get("vtk_writer", "Python")
         self.vtk_writer_is_python = vtk_writer == "Python"
         self.vtk_reset = self.data.get("vtk_reset", False)
+        self.compare_to_truth = self.data.get("compare_to_truth", False)
         self.initialize_logger()
 
     def initialize_logger(self) -> None:
@@ -162,6 +163,9 @@ class Biot_Model:
         self.coupler.cleanup()
         self.sim.step_cleanup()
 
+        if self.compare_to_truth:
+            self.coupler.print_truth_comparison()
+
     def perform_one_time_step(self, solid_p0: np.ndarray) -> np.ndarray:
         if not self.vtk_writer_is_python:
             logging.debug("Python coupling deactivated.")
@@ -195,6 +199,9 @@ class Biot_Model:
 
             # Let the coupler process and set the mass source
             self.coupler.process_source(vol_source, dt)
+
+            if self.compare_to_truth:
+                self.coupler.compare_to_truth(vol_source, dt, current_step)
 
             if current_step < len(reportsteps) - 1:
                 var_dict = tpysa.get_fluidstate_variables(self.sim)
@@ -231,6 +238,9 @@ class Biot_Model:
             "FIPNUM": self.data["FIPNUM"],
             "vol_source": vol_source,
         }
+        if self.data.get("save_as_true", False):
+            sol_dict["true_vol_source"] = vol_source
+
         tpysa.write_vtk(sol_dict, self.opmcase, current_step, self.grid.num_cells)
 
     def compute_rock_biot(self) -> float:

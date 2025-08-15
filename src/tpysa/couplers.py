@@ -8,6 +8,17 @@ import tpysa
 
 
 class Coupler:
+    def __init__(self, volumes: np.ndarray, opmcase: str):
+        self.source = np.zeros_like(volumes)
+        self.opmcase = opmcase
+
+        self.volumes = volumes
+
+        self.sqrd_true_diff = 0.0
+        self.sqrd_true_norm = 0.0
+
+        self.initialize_logger()
+
     def set_mass_source(
         self, grid: EGrid, schedule: Schedule, current_step: int, rho_w: np.ndarray
     ) -> None:
@@ -35,37 +46,6 @@ class Coupler:
 
         return "\n".join(["SOURCE", *output, "/"])
 
-
-class Lagged(Coupler):
-    """docstring for Lagged coupler."""
-
-    def __init__(self, volumes, *args):
-        self.source = np.zeros_like(volumes)
-        self.str = "lagged"
-
-    def process_source(self, source, *args) -> None:
-        self.source = source
-
-    def get_source(self, *args) -> None:
-        return self.source
-
-    def cleanup(self) -> None:
-        pass
-
-
-class Iterative(Coupler):
-    """docstring for Iterative coupler."""
-
-    def __init__(self, volumes: np.ndarray, opmcase: str):
-        self.source = np.zeros_like(volumes)
-        self.opmcase = opmcase
-        self.str = "iterative"
-
-        self.volumes = volumes
-        self.sqrd_diff_source = 0.0
-        self.sqrd_norm_source = 0.0
-        self.initialize_logger()
-
     def initialize_logger(self) -> None:
         logger = logging.getLogger()
         ch = logging.FileHandler(self.opmcase + ".ITER")
@@ -75,6 +55,52 @@ class Iterative(Coupler):
         ch.setFormatter(formatter)
 
         logger.addHandler(ch)
+
+    def compare_to_truth(self, source, dt, current_step):
+        true_source = tpysa.read_source_from_vtk(
+            self.opmcase, current_step, self.volumes.size, True
+        )
+
+        diff = source - true_source
+        self.sqrd_true_diff += dt * np.sum(diff * self.volumes * diff)
+        self.sqrd_true_norm += dt * np.sum(true_source * self.volumes * true_source)
+
+    def print_truth_comparison(self):
+        logging.error(
+            "Truth comparison {:}, abs: {:.2e}, rel: {:.2e}".format(
+                self.str,
+                np.sqrt(self.sqrd_true_diff),
+                np.sqrt(self.sqrd_true_diff / self.sqrd_true_norm),
+            )
+        )
+
+    def cleanup(self) -> None:
+        pass
+
+
+class Lagged(Coupler):
+    """docstring for Lagged coupler."""
+
+    def __init__(self, volumes, opmcase):
+        super().__init__(volumes, opmcase)
+        self.str = "lagged"
+
+    def process_source(self, source, *args) -> None:
+        self.source = source
+
+    def get_source(self, *args) -> None:
+        return self.source
+
+
+class Iterative(Coupler):
+    """docstring for Iterative coupler."""
+
+    def __init__(self, volumes, opmcase):
+        super().__init__(volumes, opmcase)
+        self.str = "iterative"
+
+        self.sqrd_diff_source = 0.0
+        self.sqrd_norm_source = 0.0
 
     def process_source(self, source, dt: float) -> None:
         """

@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -111,17 +112,24 @@ def get_range(x):
     return np.arange(len(x)) + 1
 
 
+dir_name = os.path.dirname(__file__)
+
 convs = get_convs()
 
+plt.rcParams.update({"font.size": 13})
 for conv in convs:
-    plt.semilogy(get_range(conv), conv)
+    plt.semilogy(get_range(conv), conv, ".-")
 
 # plt.semilogy(get_range(conv), np.full_like(conv, 1e-4), "--")
 plt.grid(True, which="both", ls="-", color="0.65")
 
-plt.legend(("n = 16", "n = 25", "n = 37", "n = 56"))
+plt.legend(("$h$ = 1/16", "$h$ = 1/25", "$h$ = 1/37", "$h$ = 1/56"))
 ax = plt.gca()
 ax.set_xlabel("Iteration")
 ax.set_ylabel("Relative Residual")
+ax.set_box_aspect(1)
 
+fig = plt.gcf()
+fig.set_size_inches(7, 7)
+plt.savefig(os.path.join(dir_name, "convergence_BiCGStab.pdf"), bbox_inches="tight")
 plt.show()

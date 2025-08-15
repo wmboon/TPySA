@@ -23,7 +23,7 @@ h_squared *= h_init / h_squared.max()
 
 plt.rcParams.update({"font.size": 13})
 
-plt.loglog(n_x, errs, "*-", n_x, h_squared, "--")
+plt.loglog(n_x, errs, "o-", n_x, h_squared, "--")
 plt.legend(
     (
         "Solid displacement",
