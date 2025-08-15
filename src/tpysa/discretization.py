@@ -330,13 +330,20 @@ class TPSA:
         return np.concatenate((rhs_u, rhs_r, rhs_p))
 
     def solve(
-        self, data: dict, pressure_source: np.ndarray, solver: tpysa.Solver
+        self,
+        data: dict,
+        pressure_source: np.ndarray,
+        solver: tpysa.Solver,
+        body_force=None,
     ) -> tuple[np.ndarray]:
         """
         Solve the system, using the scaling given in data["scaling"]
         """
         diff_pressure = pressure_source - self.ref_pressure
         rhs = self.assemble_isotropic_stress_source(data, diff_pressure)
+
+        if body_force is not None:
+            rhs += self.assemble_body_force(body_force)
 
         scale_scalar = data.get("scaling", 1.0)
         scale_vector = np.concatenate(
