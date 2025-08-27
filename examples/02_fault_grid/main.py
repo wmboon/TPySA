@@ -62,10 +62,10 @@ class FaultGrid(tpysa.Grid):
 
         # top_half = self.face_centers[2, :] <= plane_z
 
-        self.tags["displ_bdry"] = np.logical_or(south, north)
+        self.tags["fixed_bdry"] = np.logical_or(south, north)
 
         self.tags["sprng_bdry"] = np.logical_xor(
-            self.tags["domain_boundary_faces"], self.tags["displ_bdry"]
+            self.tags["domain_boundary_faces"], self.tags["fixed_bdry"]
         )
 
 

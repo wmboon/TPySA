@@ -5,6 +5,7 @@ import numpy as np
 from opm.io.ecl_state import EclipseState
 from opm.io.parser import Parser
 from opm.io.schedule import Schedule
+
 from opm.io.summary import SummaryConfig
 from opm.simulators import BlackOilSimulator
 from opm.util import EModel
@@ -108,6 +109,20 @@ class Biot_Model:
         rock_biot_ecl = field_props["ROCKBIOT"]
         assert np.allclose(self.data["rock_biot"], rock_biot_ecl)
 
+        # rock_comp = deck["ROCK"][0][1].get_SI(0)
+        # self.data["alpha"] = field_props["BIOTCOEF"]
+
+        # self.data["lambda"], self.data["mu"] = tpysa.from_YoungPoisson_to_Lame(
+        #     field_props["YMODULE"],
+        #     field_props["PRATIO"],
+        # )
+
+        # poro_ref = self.sim.get_porosity()
+        # poro_new = poro_ref + self.data["alpha"] ** 2 / (
+        #     rock_comp * self.data["lambda"]
+        # )
+        # self.sim.set_porosity(poro_new)
+
         # Manage the physical parameters
         self.manage_data(self.grid.num_cells)
         self.data["inv_spring_constant"] = self.compute_inv_spring_constant()
@@ -198,7 +213,7 @@ class Biot_Model:
             )
 
             # Let the coupler process and set the mass source
-            self.coupler.process_source(vol_source, dt)
+            self.coupler.process_source(vol_source, dt=dt, current_step=current_step)
 
             if self.compare_to_truth:
                 self.coupler.compare_to_truth(vol_source, dt, current_step)
@@ -213,7 +228,7 @@ class Biot_Model:
                 )
 
             # Output solution at time t_i and save the mass source for (t_{i - 1}, t_i]
-            self.write_vtk(current_step, fluid_p, displ, rotat, solid_p, vol_source)
+            # self.write_vtk(current_step, fluid_p, displ, rotat, solid_p, vol_source)
 
             return solid_p
 
@@ -257,11 +272,11 @@ class Biot_Model:
             mu_typ = np.mean(self.data["mu"])
             delta_over_mu = delta_typ / mu_typ
 
-        mu_delta_vec = np.zeros(self.grid.num_faces)
-        mu_delta_vec[self.grid.tags["sprng_bdry"]] = delta_over_mu
-        mu_delta_vec[self.grid.tags.get("displ_bdry", [])] = 0
+        delta_mu_vec = np.zeros(self.grid.num_faces)
+        delta_mu_vec[self.grid.tags["sprng_bdry"]] = delta_over_mu
+        delta_mu_vec[self.grid.tags.get("fixed_bdry", [])] = 0
 
-        return mu_delta_vec
+        return delta_mu_vec
 
     def manage_data(self, num_cells: int) -> None:
         """

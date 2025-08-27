@@ -120,7 +120,7 @@ class CartGrid(tpysa.Grid):
         super().tag_boundaries()
 
         # Put zero displacements on the boundary
-        self.tags["displ_bdry"] = self.tags["domain_boundary_faces"].copy()
+        self.tags["fixed_bdry"] = self.tags["domain_boundary_faces"].copy()
 
 
 class ConvergenceLagged(tpysa.Lagged):

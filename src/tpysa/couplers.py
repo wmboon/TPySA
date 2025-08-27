@@ -85,7 +85,7 @@ class Lagged(Coupler):
         super().__init__(volumes, opmcase)
         self.str = "lagged"
 
-    def process_source(self, source, *args) -> None:
+    def process_source(self, source, **kwargs) -> None:
         self.source = source
 
     def get_source(self, *args) -> None:
@@ -102,7 +102,7 @@ class Iterative(Coupler):
         self.sqrd_diff_source = 0.0
         self.sqrd_norm_source = 0.0
 
-    def process_source(self, source, dt: float) -> None:
+    def process_source(self, source, dt: float = 0, **kwargs) -> None:
         """
         Compares the computed source to the one from the previous space-time iteration
         """

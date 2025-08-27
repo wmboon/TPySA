@@ -3,6 +3,7 @@ import os
 import numpy as np
 
 import tpysa
+from opm.simulators import OnePhaseSimulator
 
 
 def main(nx=10):
@@ -18,17 +19,14 @@ def main(nx=10):
             "vtk_reset": False,
         }
     )
-    coupler = tpysa.Iterative
+    coupler = tpysa.Lagged
 
     ## Create a n x n x n Cartesian grid
     case_str = "GRID_" + str(nx)
     opmcase = tpysa.opmcase_from_main(__file__, case_str)
 
     model = CartBiot_Model(
-        opmcase,
-        data,
-        CartGrid,
-        CouplerType=coupler,
+        opmcase, data, CartGrid, CouplerType=coupler, SimulatorType=OnePhaseSimulator
     )
     model.simulate()
 
@@ -69,19 +67,21 @@ class CartGrid(tpysa.Grid):
         super().tag_boundaries()
 
         # Put zero traction on the top boundary
-        self.tags["tract_bdry"] = np.isclose(
-            self.face_centers[2], np.min(self.face_centers[2])
-        )
+        self.tags["free_bdry"] = self.tags["domain_boundary_faces"].copy()
+        # np.isclose(
+        #     self.face_centers[2], np.min(self.face_centers[2])
+        # )
 
         # Clamp the bottom boundary
-        self.tags["displ_bdry"] = np.isclose(
-            self.face_centers[2], np.max(self.face_centers[2])
-        )
+        self.tags["fixed_bdry"] = np.zeros_like(self.tags["domain_boundary_faces"])
+        # np.isclose(
+        #     self.face_centers[2], np.max(self.face_centers[2])
+        # )
 
         # Put springs on the remaining boundaries
         self.tags["sprng_bdry"] = np.logical_xor(
             self.tags["domain_boundary_faces"],
-            np.logical_or(self.tags["tract_bdry"], self.tags["displ_bdry"]),
+            np.logical_or(self.tags["free_bdry"], self.tags["fixed_bdry"]),
         )
 
 

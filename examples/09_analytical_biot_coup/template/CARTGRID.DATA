@@ -24,9 +24,6 @@ METRIC
 START
    1 'JAN' 2025 /
 
-WELLDIMS
-	2 ${2 * nz} 1 2 /
-
 UNIFOUT
 
 GRID
@@ -55,11 +52,11 @@ TOPS
 
 PORO
 -- Constant porosity throughout all grid cells
-   ${nx * ny * nz}*0.3 /
+   ${nx * ny * nz}*1.0 /
 
 PERMX
 -- The layers have perm. 500 mD
-	${nx * ny * nz}*500.0 /
+	${nx * ny * nz}*1000.0 /
 
 COPY
 	PERMX PERMY /
@@ -67,7 +64,17 @@ COPY
 /
 
 ROCKBIOT
-	${rockbiot_str} /
+	${nx * ny * nz}*${rock_biot} /
+
+PRATIO
+	${nx * ny * nz}*0.25 /
+
+YMODULE
+	${nx * ny * nz}*2.5 /
+
+BIOTCOEF
+	${nx * ny * nz}*1.0 /
+
 
 
 PROPS
@@ -75,7 +82,7 @@ PROPS
 
 PVTW
 -- pressure reference
- 	1.0 /
+ 	1 /
 
 ROCK
 	1.0132  1.0E-6 //
@@ -84,11 +91,12 @@ ROCKOPTS
 	1* STORE /
 
 DENSITY
+-- Using values from Norne:
+-- In METRIC units:
     859.5 1033.0 0.854 /
 
-
 SOLUTION
--- -------------------------------------------------------------------------
+---------------------------------------------------------------------------
 
 EQUIL
 -- Item 1: datum depth 
@@ -109,26 +117,8 @@ RPTSCHED
 RPTRST
 	'BASIC=1' /
 
-WELSPECS
-	INJE G 2 2 1* WAT /
-	PROD G ${nx-1} ${ny-1} 1* WAT /
-/
-
-COMPDAT
-	INJE 1* 1* 1 ${nz} OPEN 1* 1* 0.2 /
-	PROD 1* 1* 1 ${nz} OPEN 1* 1* 0.2 /
-/
-
-WCONINJE
-	INJE WAT SHUT RATE ${inj_rate} 1* 900 /
-/
-
-WCONPROD
-	PROD SHUT WRAT 1* ${inj_rate} /
-/
-
 TSTEP
-	${n_time}*10
+	${n_time}*50
 /
 
 

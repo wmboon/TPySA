@@ -204,7 +204,7 @@ class TPSA:
         mu_bar_over_dk = 1 / (np.bincount(faces, weights=dk_mu))
 
         # Traction bc
-        mu_bar_over_dk[self.sd.tags["tract_bdry"]] = 0
+        mu_bar_over_dk[self.sd.tags["free_bdry"]] = 0
 
         # Displacement bc are handled naturally as a subset of spring_bdry
         # with zero (inverse) spring constant
