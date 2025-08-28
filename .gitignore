@@ -26,3 +26,6 @@ examples/07_troll_full/*
 *.ITER
 PAT-cluster.txt
 *.svg
+*.npz
+examples/10_norne_single_phase/INCLUDE/*
+*.pdf

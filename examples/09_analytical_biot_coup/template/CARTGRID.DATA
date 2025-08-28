@@ -64,7 +64,7 @@ COPY
 /
 
 ROCKBIOT
-	${nx * ny * nz}*${rock_biot} /
+	${rockbiot_str} /
 
 PRATIO
 	${nx * ny * nz}*0.25 /

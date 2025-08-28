@@ -20,7 +20,7 @@ def main(nx=10, write_errors=False):
             "mu": 0.01,
             "lambda": 1,
             "alpha": 1,
-            "vtk_writer": "OPM",  # First run with "OPM", then "Python"
+            "vtk_writer": "Python",  # First run with "OPM", then "Python"
             "vtk_reset": False,
         }
     )
@@ -147,7 +147,7 @@ class CartGrid(tpysa.Grid):
         super().tag_boundaries()
 
         # Put zero displacements on the boundary
-        self.tags["displ_bdry"] = self.tags["domain_boundary_faces"].copy()
+        self.tags["fixed_bdry"] = self.tags["domain_boundary_faces"].copy()
 
 
 class ConvergenceLagged(tpysa.Lagged):
