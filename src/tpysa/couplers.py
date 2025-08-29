@@ -1,5 +1,5 @@
 import logging
-
+import os
 import numpy as np
 from opm.io.ecl import EGrid
 from opm.io.schedule import Schedule
@@ -84,12 +84,20 @@ class Lagged(Coupler):
     def __init__(self, volumes, opmcase):
         super().__init__(volumes, opmcase)
         self.str = "lagged"
+        self.source_list = [np.zeros((2, len(volumes)))]
 
     def process_source(self, source, **kwargs) -> None:
         self.source = source
+        self.source_list.append(source)
 
     def get_source(self, *args) -> None:
         return self.source
+
+    def cleanup(self):
+        dirname = os.path.dirname(__file__)
+        out_file = os.path.join(dirname, "lagged_source")
+        sources = np.vstack(self.source_list)
+        np.savez(out_file, psi=sources)
 
 
 class Iterative(Coupler):

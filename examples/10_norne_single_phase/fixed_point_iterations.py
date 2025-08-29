@@ -10,5 +10,5 @@ if __name__ == "__main__":
 
     iterator = tpysa.FixedPoint(main_file, n_elements, n_time)
 
-    # iterator.anderson(9)
-    iterator.fixed_point(5)
+    # iterator.anderson(8)
+    iterator.fixed_point(9)

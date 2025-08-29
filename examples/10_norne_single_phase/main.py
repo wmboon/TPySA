@@ -14,7 +14,7 @@ def main():
             "vtk_writer": "Python",  # First run with "OPM", then "Python"
             "vtk_reset": False,
             "n_time_steps": 30,
-            "alpha": 0,
+            # "alpha": 0,
         }
     )
     # coupler = Iterative_NP
@@ -51,7 +51,7 @@ class NorneGrid(tpysa.Grid):
 
     def tag_boundaries(self):
         super().tag_boundaries()
-        self.tags["fixed_bdry"] = self.tags["domain_boundary_faces"].copy()
+        # self.tags["fixed_bdry"] = self.tags["domain_boundary_faces"].copy()
 
 
 class Iterative_NP(tpysa.Iterative):
@@ -70,7 +70,7 @@ class Iterative_NP(tpysa.Iterative):
         """
         Extracts the source for (t_i, t_{i + 1}] from the vtu-file at t_{i + 1}
         """
-        return self.insource[current_step]
+        return self.insource[current_step + 1]
 
     def cleanup(self) -> None:
         out_file = list(os.path.splitext(source_file))
