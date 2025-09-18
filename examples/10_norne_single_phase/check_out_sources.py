@@ -37,7 +37,7 @@ def extract_psi_array(scheme: str, num_psi: int):
 and_psi, and_out, and_true = extract_psi_array("anderson", 8)
 and_norm = np.linalg.norm(and_true)
 
-fix_psi, fix_out, fix_true = extract_psi_array("fixed_point", 9)
+fix_psi, fix_out, fix_true = extract_psi_array("fixed_point", 8)
 fix_norm = np.linalg.norm(fix_true)
 
 lagged = np.load(os.path.join(os.path.dirname(__file__), "lagged_source.npz"))["psi"]

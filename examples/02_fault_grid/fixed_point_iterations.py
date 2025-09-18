@@ -3,8 +3,8 @@ import tpysa
 
 
 if __name__ == "__main__":
-    n_time = 48 * 2
-    n_elements = 10**2
+    n_time = 48
+    n_elements = 2700
 
     dir_name = os.path.dirname(__file__)
     main_file = os.path.join(dir_name, "main.py")
@@ -12,4 +12,4 @@ if __name__ == "__main__":
     iterator = tpysa.FixedPoint(main_file, n_elements, n_time)
 
     # iterator.anderson(10)
-    iterator.fixed_point(5)
+    iterator.fixed_point(10)

@@ -51,11 +51,18 @@ class FixedPoint:
             / np.linalg.norm(out_source)
         )
 
+        print(
+            "Fixed point iteration {:}/{:}".format(
+                self.iteration + 1, self.n_iterations
+            )
+        )
+
         self.iteration += 1
 
         return out_source.ravel() - input_source
 
     def anderson(self, n_iterations):
+        self.n_iterations = n_iterations
         self.generate_output_dir("anderson")
 
         psi = spo.anderson(
@@ -72,6 +79,7 @@ class FixedPoint:
         self.save_final_sol(psi)
 
     def fixed_point(self, n_iterations):
+        self.n_iterations = n_iterations
         self.generate_output_dir("fixed_point")
 
         psi = self.initial_guess.copy()

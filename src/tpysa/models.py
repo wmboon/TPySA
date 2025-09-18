@@ -134,7 +134,7 @@ class Biot_Model:
 
         ## Choose Solver
         if self.SolverType is None:
-            if self.disc.ndofs.sum() <= 1e4:
+            if self.disc.ndofs.sum() <= 2e4:
                 self.SolverType = tpysa.DirectSolver
             else:
                 self.SolverType = tpysa.AMGSolver
@@ -228,7 +228,7 @@ class Biot_Model:
                 )
 
             # Output solution at time t_i and save the mass source for (t_{i - 1}, t_i]
-            # self.write_vtk(current_step, fluid_p, displ, rotat, solid_p, vol_source)
+            self.write_vtk(current_step, fluid_p, displ, rotat, solid_p, vol_source)
 
             return solid_p
 

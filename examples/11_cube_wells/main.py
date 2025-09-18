@@ -10,16 +10,19 @@ def main(nx=10):
     data = tpysa.default_data()
     data.update(
         {
-            "inj_rate": 1e4,  # sm3/day
+            "perm": 1e3,
+            "mu": 1e3,
+            "lambda": 1e5,
             "nx": nx,
-            "n_time": 40,
-            "n_total_cells": nx**3,
+            "n_time": 24,
+            "n_total_cells": nx**2,
             "vtk_writer": "Python",  # First run with "OPM", then "Python"
             "vtk_reset": False,
+            # "alpha": 0,
         }
     )
-    coupler = Iterative_NP
-    # coupler = tpysa.Lagged
+    # coupler = Iterative_NP
+    coupler = tpysa.Lagged
 
     ## Create a n x n x n Cartesian grid
     case_str = "GRID_" + str(nx)
@@ -40,7 +43,7 @@ class CartBiot_Model(tpysa.Biot_Model):
             {
                 # "nx": nx,
                 "ny": nx,
-                "nz": nx,
+                "nz": 1,
                 "hx": 100 / nx,
                 "hy": 100 / nx,
                 "hz": 100 / nx,
@@ -51,13 +54,13 @@ class CartBiot_Model(tpysa.Biot_Model):
         template_file = os.path.join(dir_name, "template/CARTGRID.DATA")
         tpysa.generate_deck_from_template(template_file, self.deck_file, self.data)
 
-    def operate_wells(self, schedule):
-        for well in schedule.get_wells(0):
-            schedule.open_well(well.name, 0)
+    # def operate_wells(self, schedule):
+    #     for well in schedule.get_wells(0):
+    #         schedule.open_well(well.name, 0)
 
-        if len(schedule.reportsteps) > 20:
-            for well in schedule.get_wells(20):
-                schedule.shut_well(well.name, 20)
+    #     if len(schedule.reportsteps) > 20:
+    #         for well in schedule.get_wells(20):
+    #             schedule.shut_well(well.name, 20)
 
 
 class CartGrid(tpysa.Grid):
@@ -67,22 +70,24 @@ class CartGrid(tpysa.Grid):
         super().tag_boundaries()
 
         # Put zero traction on the top boundary
-        self.tags["free_bdry"] = self.tags["domain_boundary_faces"].copy()
+        self.tags["fixed_bdry"] = self.tags["domain_boundary_faces"].copy()
         # np.isclose(
         #     self.face_centers[2], np.min(self.face_centers[2])
         # )
 
         # Clamp the bottom boundary
-        self.tags["fixed_bdry"] = np.zeros_like(self.tags["domain_boundary_faces"])
+        self.tags["free_bdry"] = np.zeros_like(self.tags["domain_boundary_faces"])
         # np.isclose(
         #     self.face_centers[2], np.max(self.face_centers[2])
         # )
 
         # Put springs on the remaining boundaries
-        self.tags["sprng_bdry"] = np.logical_xor(
-            self.tags["domain_boundary_faces"],
-            np.logical_or(self.tags["free_bdry"], self.tags["fixed_bdry"]),
-        )
+        self.tags["sprng_bdry"] = np.zeros_like(self.tags["domain_boundary_faces"])
+        # self.tags["domain_boundary_faces"].copy()
+        # np.logical_xor(
+        #     ,
+        #     np.logical_or(self.tags["free_bdry"], self.tags["fixed_bdry"]),
+        # )
 
 
 class Iterative_NP(tpysa.Iterative):

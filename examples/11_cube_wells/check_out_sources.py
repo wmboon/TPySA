@@ -29,18 +29,18 @@ def extract_psi_array(scheme: str, num_psi: int):
     #         "source_true.npz".format(i),
     #     )
     # )
-    # psi_true = true_dict["psi"].reshape((-1, 44431))
+    # psi_true = true_dict["psi"].reshape((-1, len(psi_list[-1])))
 
     return np.array(psi_list), np.array(psi_out_list), psi_list[-1]
 
 
-and_psi, and_out, and_true = extract_psi_array("anderson", 12)
+and_psi, and_out, and_true = extract_psi_array("anderson", 10)
 and_norm = np.linalg.norm(and_true)
 and_norms = np.array([np.linalg.norm(psi - and_true) for psi in and_psi]) / and_norm
 
-fix_psi, fix_out, fix_true = extract_psi_array("fixed_point", 3)
+fix_psi, fix_out, fix_true = extract_psi_array("fixed_point", 5)
 fix_norm = np.linalg.norm(fix_true)
-fix_norms = np.array([np.linalg.norm(psi - fix_true) for psi in fix_psi]) / fix_norm
+fix_norms = np.array([np.linalg.norm(psi - and_true) for psi in fix_psi]) / fix_norm
 
 import matplotlib.pyplot as plt
 
