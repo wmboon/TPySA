@@ -156,7 +156,7 @@ class ConvergenceLagged(tpysa.Lagged):
         self.nx = nx
 
     def cleanup(self):
-        if write_errors == True:
+        if write_errors:
             dir_name = os.path.dirname(__file__)
             with open(os.path.join(dir_name, "errs.txt"), "a") as f:
                 str_tuple = [str(self.nx)]

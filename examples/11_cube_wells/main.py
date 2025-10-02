@@ -21,7 +21,7 @@ def main(nx=10):
             # "alpha": 0,
         }
     )
-    # coupler = Iterative_NP
+    # coupler = Iterative
     coupler = tpysa.Lagged
 
     ## Create a n x n x n Cartesian grid
@@ -88,32 +88,6 @@ class CartGrid(tpysa.Grid):
         #     ,
         #     np.logical_or(self.tags["free_bdry"], self.tags["fixed_bdry"]),
         # )
-
-
-class Iterative_NP(tpysa.Iterative):
-    global source_file
-
-    def __init__(self, volumes, opmcase):
-        super().__init__(volumes, opmcase)
-
-        self.insource = np.load(source_file)["psi"]
-        self.outsource = np.zeros_like(self.insource)
-
-    def process_source(self, source, current_step=0, **kwargs) -> None:
-        self.outsource[current_step] = source
-
-    def get_source(self, current_step: int) -> np.ndarray:
-        """
-        Extracts the source for (t_i, t_{i + 1}] from the vtu-file at t_{i + 1}
-        """
-        return self.insource[current_step]
-
-    def cleanup(self) -> None:
-        out_file = list(os.path.splitext(source_file))
-        out_file[0] = out_file[0] + "_out"
-        new_source = "".join(out_file)
-
-        np.savez(new_source, psi=self.outsource.reshape((-1, self.volumes.size)))
 
 
 if __name__ == "__main__":

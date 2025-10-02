@@ -12,7 +12,6 @@ def main():
             "vtk_writer": "Python",  # First run with "OPM", then "Python"
             "vtk_reset": False,
             "save_as_true": False,
-            "compare_to_truth": True,
         }
     )
     coupler = tpysa.Lagged

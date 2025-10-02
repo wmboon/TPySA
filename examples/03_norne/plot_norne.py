@@ -69,7 +69,7 @@ plt.legend(("Iterative coupling", "Lagged coupling"))
 ax = plt.gca()
 ax.set_xlabel("Iteration")
 ax.set_ylabel("Relative error in source terms")
-ax.set_box_aspect(1)
+# ax.set_box_aspect(1)
 
 fig = plt.gcf()
 fig.set_size_inches(7, 7)
