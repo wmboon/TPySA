@@ -8,7 +8,8 @@ from tpysa.couplers import Coupler, Lagged, Iterative
 
 from tpysa.simulator_reader import get_fluidstate_variables
 from tpysa.units import from_YoungPoisson_to_Lame, from_Lame_to_YoungPoisson
-from tpysa.fixed_point import FixedPoint
-from tpysa.vtk_io import write_vtk, read_source_from_vtk
+from tpysa.fixed_point import FixedStress
+from tpysa.vtk_io import write_vtk
+from tpysa.plotters import extract_arrays, plot_spacetime_convergence
 
 from tpysa.models import Biot_Model

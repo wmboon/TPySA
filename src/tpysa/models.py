@@ -7,7 +7,7 @@ from opm.io.parser import Parser
 from opm.io.schedule import Schedule
 
 from opm.io.summary import SummaryConfig
-from opm.simulators import BlackOilSimulator
+from opm.simulators import OnePhaseSimulator
 from opm.util import EModel
 
 import tpysa
@@ -19,9 +19,10 @@ class Biot_Model:
         opmcase: str,
         data: dict,
         GridType=tpysa.Grid,
-        SimulatorType=BlackOilSimulator,
+        SimulatorType=OnePhaseSimulator,
         SolverType=None,
         CouplerType=tpysa.Lagged,
+        mass_source_file=None,
     ):
         self.opmcase = opmcase
         self.deck_file = "{}.DATA".format(self.opmcase)
@@ -32,11 +33,11 @@ class Biot_Model:
         self.SimulatorType = SimulatorType
         self.SolverType = SolverType
         self.CouplerType = CouplerType
+        self.mass_source_file = mass_source_file
 
-        vtk_writer = self.data.get("vtk_writer", "Python")
-        self.vtk_writer_is_python = vtk_writer == "Python"
+        self.vtk_writer = self.data.get("vtk_writer", "None")
         self.vtk_reset = self.data.get("vtk_reset", False)
-        self.compare_to_truth = self.data.get("compare_to_truth", False)
+
         self.initialize_logger()
 
     def initialize_logger(self) -> None:
@@ -68,11 +69,16 @@ class Biot_Model:
         self.generate_deck()
         deck = Parser().parse(self.deck_file)
 
+        if self.vtk_writer == "OPM":
+            enable_vtk_output_OPM = 1
+        else:
+            enable_vtk_output_OPM = 0
+
         # Create the folder for the solution if it does not exist
         output_dir = os.path.join(os.path.dirname(self.deck_file), "solution")
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
-            self.vtk_writer_is_python = 0
+            enable_vtk_output_OPM = 1
 
         ## Initialize flow simulator
         state = EclipseState(deck)
@@ -84,7 +90,7 @@ class Biot_Model:
             self.schedule,
             summary_config,
             args=[
-                "--enable-vtk-output={}".format(1 - self.vtk_writer_is_python),
+                "--enable-vtk-output={}".format(enable_vtk_output_OPM),
                 "--output-dir={}".format(output_dir),
             ],
         )
@@ -142,7 +148,11 @@ class Biot_Model:
         self.solver = self.SolverType(self.disc.system, rtol)
 
         ## Choose coupling scheme
-        self.coupler = self.CouplerType(self.grid.cell_volumes, self.opmcase)
+        self.coupler = self.CouplerType(
+            self.grid.cell_volumes,
+            self.opmcase,
+            mass_source_file=self.mass_source_file,
+        )
 
         if self.vtk_reset:
             self.zero_out_vol_source()
@@ -178,59 +188,51 @@ class Biot_Model:
         self.coupler.cleanup()
         self.sim.step_cleanup()
 
-        if self.compare_to_truth:
-            self.coupler.print_truth_comparison()
-
     def perform_one_time_step(self, solid_p0: np.ndarray) -> np.ndarray:
-        if not self.vtk_writer_is_python:
-            logging.debug("Python coupling deactivated.")
-            return solid_p0
+        current_step = self.sim.current_step()
+        logging.debug("\nReport step {}".format(current_step))
 
-        else:
-            current_step = self.sim.current_step()
-            logging.debug("\nReport step {}".format(current_step))
+        reportsteps = self.schedule.reportsteps
+        dt = (reportsteps[current_step] - reportsteps[current_step - 1]).total_seconds()
 
-            reportsteps = self.schedule.reportsteps
-            dt = (
-                reportsteps[current_step] - reportsteps[current_step - 1]
-            ).total_seconds()
+        # Extract current fluid pressure
+        fluid_p = self.sim.get_primary_variable("pressure")
 
-            # Extract current fluid pressure
-            fluid_p = self.sim.get_primary_variable("pressure")
+        # Solve the mechanics equations
+        displ, rotat, solid_p = self.disc.solve(self.data, fluid_p, self.solver)
 
-            # Solve the mechanics equations
-            displ, rotat, solid_p = self.disc.solve(self.data, fluid_p, self.solver)
+        # Compute the change in solid pressures during the previous time step
+        delta_ps = (solid_p - solid_p0) / dt
 
-            # Compute the change in solid pressures during the previous time step
-            delta_ps = (solid_p - solid_p0) / dt
+        # Compute the source in the mass balance equation
+        vol_source = (
+            -self.data["alpha"]
+            / self.data["lambda"]
+            * delta_ps
+            * self.grid.cell_volumes
+        )
 
-            # Compute the source in the mass balance equation
-            vol_source = (
-                -self.data["alpha"]
-                / self.data["lambda"]
-                * delta_ps
-                * self.grid.cell_volumes
+        # Let the coupler process the mass source for (t_{i - 1}, t_i]
+        self.coupler.process_source(vol_source, dt=dt, current_step=current_step)
+
+        # Set the mass source for (t_i, t_{i + 1}]
+        if current_step < len(reportsteps) - 1:
+            rho_w = self.sim.get_fluidstate_variable("rho_w")
+            self.coupler.set_mass_source(
+                self.grid,
+                self.schedule,
+                current_step,
+                rho_w,
             )
 
-            # Let the coupler process and set the mass source
-            self.coupler.process_source(vol_source, dt=dt, current_step=current_step)
+        # Output solution at time t_i to the coupler
+        self.coupler.save_pressure(fluid_p - self.data["ref_pressure"])
 
-            if self.compare_to_truth:
-                self.coupler.compare_to_truth(vol_source, dt, current_step)
-
-            if current_step < len(reportsteps) - 1:
-                var_dict = tpysa.get_fluidstate_variables(self.sim)
-                self.coupler.set_mass_source(
-                    self.grid,
-                    self.schedule,
-                    current_step,
-                    var_dict["rho_w"],
-                )
-
-            # Output solution at time t_i and save the mass source for (t_{i - 1}, t_i]
+        # Output as vtk if necessary
+        if self.vtk_writer == "Python":
             self.write_vtk(current_step, fluid_p, displ, rotat, solid_p, vol_source)
 
-            return solid_p
+        return solid_p
 
     def write_vtk(
         self,

@@ -115,6 +115,7 @@ class Grid(EGrid):
             self.face_nodes @ self.tags["domain_boundary_faces"]
         )
 
+        # The default is to tag all boundaries as springs
         self.tags["sprng_bdry"] = self.tags["domain_boundary_faces"].copy()
         self.tags["free_bdry"] = np.zeros_like(self.tags["domain_boundary_faces"])
 

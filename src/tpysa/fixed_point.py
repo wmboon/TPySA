@@ -3,13 +3,14 @@ import numpy as np
 import scipy.optimize as spo
 
 
-class FixedPoint:
+class FixedStress:
     def __init__(
         self,
         main_file: str,
         n_elements: int,
         n_timesteps: int,
         rtol: float = 1e-4,
+        initial_guess=None,
     ):
         self.n_elements = n_elements
         self.n_timesteps = n_timesteps
@@ -21,9 +22,13 @@ class FixedPoint:
         self.residuals = []
 
         self.rtol = rtol
-        self.initial_guess = np.zeros(self.n_elements * (self.n_timesteps + 1))
 
-    def generate_output_dir(self, scheme_name):
+        if initial_guess is None:
+            self.initial_guess = np.zeros(self.n_elements * (self.n_timesteps + 1))
+        else:
+            self.initial_guess = initial_guess.ravel()
+
+    def mkdir(self, scheme_name):
         dir_name = os.path.dirname(self.main)
         self.output_dir = os.path.join(dir_name, scheme_name)
 
@@ -44,12 +49,15 @@ class FixedPoint:
         out_file = list(os.path.splitext(source_file))
         out_file[0] = out_file[0] + "_out"
         out_file = "".join(out_file)
-        out_source = np.load(out_file)["psi"]
+        out_dict = np.load(out_file)
+
+        out_source = out_dict["psi"]
 
         self.residuals.append(
             (np.linalg.norm(out_source.ravel() - input_source))
             / np.linalg.norm(out_source)
         )
+        self.current_pressure = out_dict["pres"]
 
         print(
             "Fixed point iteration {:}/{:}".format(
@@ -63,7 +71,7 @@ class FixedPoint:
 
     def anderson(self, n_iterations):
         self.n_iterations = n_iterations
-        self.generate_output_dir("anderson")
+        self.mkdir("anderson")
 
         psi = spo.anderson(
             self.run_simulator,
@@ -80,7 +88,7 @@ class FixedPoint:
 
     def fixed_point(self, n_iterations):
         self.n_iterations = n_iterations
-        self.generate_output_dir("fixed_point")
+        self.mkdir("fixed_point")
 
         psi = self.initial_guess.copy()
 
@@ -95,5 +103,8 @@ class FixedPoint:
         self.save_final_sol(psi)
 
     def save_final_sol(self, psi):
+        psi = psi.reshape((self.n_timesteps + 1, self.n_elements))
+        pres = self.current_pressure
+
         output_file = os.path.join(self.output_dir, "source_true.npz")
-        np.savez(output_file, psi=psi, res=np.array(self.residuals))
+        np.savez(output_file, psi=psi, res=np.array(self.residuals), pres=pres)

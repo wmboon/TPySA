@@ -4,8 +4,6 @@ import numpy as np
 from opm.io.ecl import EGrid
 from opm.io.schedule import Schedule
 
-import tpysa
-
 
 class Coupler:
     def __init__(self, volumes: np.ndarray, opmcase: str):
@@ -13,9 +11,7 @@ class Coupler:
         self.opmcase = opmcase
 
         self.volumes = volumes
-
-        self.sqrd_true_diff = 0.0
-        self.sqrd_true_norm = 0.0
+        self.pressures = []
 
         self.initialize_logger()
 
@@ -56,35 +52,20 @@ class Coupler:
 
         logger.addHandler(ch)
 
-    def compare_to_truth(self, source, dt, current_step):
-        true_source = tpysa.read_source_from_vtk(
-            self.opmcase, current_step, self.volumes.size, True
-        )
-
-        diff = source - true_source
-        self.sqrd_true_diff += dt * np.sum(diff * self.volumes * diff)
-        self.sqrd_true_norm += dt * np.sum(true_source * self.volumes * true_source)
-
-    def print_truth_comparison(self):
-        logging.error(
-            "Truth comparison {:}, abs: {:.2e}, rel: {:.2e}".format(
-                self.str,
-                np.sqrt(self.sqrd_true_diff),
-                np.sqrt(self.sqrd_true_diff / self.sqrd_true_norm),
-            )
-        )
+    def save_pressure(self, pressure):
+        self.pressures.append(pressure)
 
     def cleanup(self) -> None:
-        pass
+        self.pressures = np.vstack(self.pressures)
 
 
 class Lagged(Coupler):
     """docstring for Lagged coupler."""
 
-    def __init__(self, volumes, opmcase):
+    def __init__(self, volumes, opmcase, **kwargs):
         super().__init__(volumes, opmcase)
         self.str = "lagged"
-        self.source_list = [np.zeros((2, len(volumes)))]
+        self.source_list = []
 
     def process_source(self, source, **kwargs) -> None:
         self.source = source
@@ -94,43 +75,34 @@ class Lagged(Coupler):
         return self.source
 
     def cleanup(self):
+        super().cleanup()
         dirname = os.path.dirname(__file__)
         out_file = os.path.join(dirname, "lagged_source")
         sources = np.vstack(self.source_list)
-        np.savez(out_file, psi=sources)
+        np.savez(out_file, psi=sources, pres=self.pressures)
 
 
 class Iterative(Coupler):
-    """docstring for Iterative coupler."""
-
-    def __init__(self, volumes, opmcase):
+    def __init__(self, volumes, opmcase, mass_source_file=None):
         super().__init__(volumes, opmcase)
-        self.str = "iterative"
+        self.source_file = mass_source_file
 
-        self.sqrd_diff_source = 0.0
-        self.sqrd_norm_source = 0.0
+        self.insource = np.load(self.source_file)["psi"]
+        self.outsource = np.zeros_like(self.insource)
 
-    def process_source(self, source, dt: float = 0, **kwargs) -> None:
-        """
-        Compares the computed source to the one from the previous space-time iteration
-        """
-        diff = source - self.source
-        self.sqrd_diff_source += dt * np.sum(diff * self.volumes * diff)
-        self.sqrd_norm_source += dt * np.sum(source * self.volumes * source)
+    def process_source(self, source, current_step=0, **kwargs) -> None:
+        self.outsource[current_step] = source
 
     def get_source(self, current_step: int) -> np.ndarray:
         """
         Extracts the source for (t_i, t_{i + 1}] from the vtu-file at t_{i + 1}
         """
-        self.source = tpysa.read_source_from_vtk(
-            self.opmcase, current_step + 1, self.volumes.size
-        )
-        return self.source
+        return self.insource[current_step + 1]
 
     def cleanup(self) -> None:
-        logging.error(
-            "Source difference, abs: {:.2e}, rel: {:.2e}".format(
-                np.sqrt(self.sqrd_diff_source),
-                np.sqrt(self.sqrd_diff_source / self.sqrd_norm_source),
-            )
-        )
+        super().cleanup()
+        out_file = list(os.path.splitext(self.source_file))
+        out_file[0] = out_file[0] + "_out"
+        out_file = "".join(out_file)
+
+        np.savez(out_file, psi=self.outsource, pres=self.pressures)

@@ -1,6 +1,6 @@
 import logging
 import time
-
+import inspect
 import numpy as np
 import pyamg
 import scipy.sparse as sps
@@ -155,6 +155,10 @@ class AMGSolver(Solver):
         def callback(x):
             nonlocal num_it, res
             num_it += 1
+
+            frame = inspect.currentframe().f_back
+            res = frame.f_locals["r"]
+
             res = np.linalg.norm(rhs - self.system @ x) / norm_rhs
             logging.debug("{:4}  {:.2e}".format(num_it, res))
 
