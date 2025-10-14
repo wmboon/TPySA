@@ -58,6 +58,6 @@ if __name__ == "__main__":
 
     else:
         source_file = "/home/AD.NORCERESEARCH.NO/wibo/TPySA/examples/10_norne_single_phase/anderson/source_true.npz"
-        coupler = tpysa.Lagged
+        coupler = tpysa.Iterative
 
     main(coupler, source_file)

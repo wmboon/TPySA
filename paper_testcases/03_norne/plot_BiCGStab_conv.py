@@ -13,6 +13,8 @@ tag = "Norne"
 
 def plot_bicgstab_residuals(file, info_file, tag):
     res_list = []
+    time_list = []
+
     with open(info_file, "r", newline="") as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=" ")
 
@@ -25,6 +27,7 @@ def plot_bicgstab_residuals(file, info_file, tag):
                     res_list.append(np.array(res_i))
                     res_i = []
                     track = False
+                    time_list.append(float(row[-2][1:]))
                 if row[0] == "Iter":
                     track = True
                     continue
@@ -61,7 +64,11 @@ def plot_bicgstab_residuals(file, info_file, tag):
         os.path.join(os.path.dirname(file), "convergence_BiCGStab_{:}.pdf".format(tag)),
         bbox_inches="tight",
     )
-    return res_list
+
+    time_array = np.array(time_list)
+    return time_array, res_list
 
 
-plot_bicgstab_residuals(__file__, input, tag)
+t_array, res_list = plot_bicgstab_residuals(__file__, input, tag)
+
+pass
