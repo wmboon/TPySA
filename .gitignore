@@ -14,14 +14,16 @@
 src/tpysa.egg-info/*
 *.EGRID
 *.INIT
-examples/**/*.DATA
-*.INC
-*.GRDECL
+# *.DATA
+**/INCLUDE/*
+# **/include/*
+
+# *.GRDECL
 animations/*
 snippets/*
-examples/05_troll_5/*
-examples/06_troll_open/*
-examples/07_troll_full/*
+other_examples/05_troll_5/*
+other_examples/06_troll_open/*
+other_examples/07_troll_full/*
 *.INFO
 *.ITER
 PAT-cluster.txt

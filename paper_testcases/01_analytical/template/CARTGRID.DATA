@@ -1,0 +1,125 @@
+RUNSPEC
+---------------------------------------------------------------------------
+
+TITLE
+   Single-phase flow on a cartesian grid
+
+DIMENS
+   ${nx} ${ny} ${nz} /
+
+-- The number of equilibration regions is inferred from the EQLDIMS
+-- keyword.
+EQLDIMS
+/
+
+-- The number of PVTW tables is inferred from the TABDIMS keyword;
+-- when no data is included in the keyword the default values are used.
+TABDIMS
+/
+
+WATER
+
+METRIC
+
+START
+   1 'JAN' 2025 /
+
+UNIFOUT
+
+GRID
+-- -------------------------------------------------------------------------
+
+-- The INIT keyword is used to request an .INIT file. The .INIT file
+-- is written before the simulation actually starts, and contains grid
+-- properties and saturation tables as inferred from the input
+-- deck. There are no other keywords which can be used to configure
+-- exactly what is written to the .INIT file.
+INIT
+
+DX 
+-- There are in total ${nx * ny * nz} cells with length ${hx} in x-direction	
+	${nx * ny * nz}*${hx} /
+DY
+-- There are in total ${nx * ny * nz} cells with length ${hy} in y-direction	
+	${nx * ny * nz}*${hy} /
+DZ
+-- There are in total ${nx * ny * nz} cells with length ${hz} in z-direction	
+	${nx * ny * nz}*${hz} /
+
+TOPS
+-- The depth of the top of each grid block
+	${nx * ny}*1000.0 /
+
+PORO
+-- Constant porosity throughout all grid cells
+   ${nx * ny * nz}*1.0 /
+
+PERMX
+-- The layers have perm. 500 mD
+	${nx * ny * nz}*1000.0 /
+
+COPY
+	PERMX PERMY /
+	PERMX PERMZ /
+/
+
+ROCKBIOT
+	${rockbiot_str} /
+
+PRATIO
+	${nx * ny * nz}*0.25 /
+
+YMODULE
+	${nx * ny * nz}*2.5 /
+
+BIOTCOEF
+	${nx * ny * nz}*1.0 /
+
+
+
+PROPS
+-- -------------------------------------------------------------------------
+
+PVTW
+-- pressure reference
+ 	1 /
+
+ROCK
+	1.0132  1.0E-6 //
+
+ROCKOPTS
+	1* STORE /
+
+DENSITY
+-- Using values from Norne:
+-- In METRIC units:
+    859.5 1033.0 0.854 /
+
+SOLUTION
+---------------------------------------------------------------------------
+
+EQUIL
+-- Item 1: datum depth 
+-- Item 2: pressure at datum depth 
+	    1000 100 /
+
+
+SUMMARY
+-- -------------------------------------------------------------------------	 
+
+
+SCHEDULE
+-- -------------------------------------------------------------------------
+
+RPTSCHED
+	'NOTHING' /
+
+RPTRST
+	'BASIC=1' /
+
+TSTEP
+	${n_time}*50
+/
+
+
+END
