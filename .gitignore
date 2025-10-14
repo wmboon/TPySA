@@ -14,11 +14,11 @@
 src/tpysa.egg-info/*
 *.EGRID
 *.INIT
-# *.DATA
+*.DATA
 **/INCLUDE/*
-# **/include/*
+**/include/*
 
-# *.GRDECL
+*.GRDECL
 animations/*
 snippets/*
 other_examples/05_troll_5/*
