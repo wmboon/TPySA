@@ -17,7 +17,6 @@ src/tpysa.egg-info/*
 *.DATA
 **/INCLUDE/*
 **/include/*
-
 *.GRDECL
 animations/*
 snippets/*
@@ -31,3 +30,5 @@ PAT-cluster.txt
 *.npz
 examples/10_norne_single_phase/INCLUDE/*
 *.pdf
+*.jpeg
+*.avi
