@@ -1,6 +1,6 @@
 # Installation tips
 
-Below are some steps to keep in mind when installing OPM Flow from source, with Python bindings, using a Python virtual environment on Linux, without sudo rights. These mainly serve as reminders when I mess up my installation again. Some of these flags are probably superfluous.
+Below are some steps to keep in mind when installing OPM Flow from source, with Python bindings, using a Python virtual environment on Linux, without sudo rights. These mainly serve as reminders, some of these flags are probably superfluous.
 
 ## Use a Python virtual environment
 
