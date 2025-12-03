@@ -113,7 +113,7 @@ class Biot_Model:
         # Double check that ROCKBIOT is inserted appropriately
         field_props = state.field_props()
         rock_biot_ecl = field_props["ROCKBIOT"]
-        assert np.allclose(self.data["rock_biot"], rock_biot_ecl)
+        assert np.allclose(self.data["rock_biot"], rock_biot_ecl, atol=0)
 
         # rock_comp = deck["ROCK"][0][1].get_SI(0)
         # self.data["alpha"] = field_props["BIOTCOEF"]

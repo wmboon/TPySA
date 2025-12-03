@@ -409,3 +409,18 @@ class TPSA:
         areas = sps.diags_array(self.sd.face_areas)
 
         return self.assemble_second_order_terms(areas, scale_factor)
+
+    def reorder_to_opm_ordering(self):
+        dofrange = np.arange(self.ndofs.sum()).reshape((7, -1)).ravel(order="F")
+        system_reordered = self.system.copy().todense()
+        np.set_printoptions(linewidth=1e3, precision=2, suppress=True)
+
+        system_reordered = system_reordered[np.ix_(dofrange, dofrange)]
+
+        # import matplotlib.pyplot as plt
+
+        # plt.spy(system_reordered)
+        # plt.show()
+
+        system_coo = sps.coo_array(system_reordered)
+        pass

@@ -110,8 +110,8 @@ RPTRST
 	'BASIC=1' /
 
 WELSPECS
-	INJE G 2 2 1* WAT /
-	PROD G ${nx-1} ${ny-1} 1* WAT /
+	INJE G 1 1 1* WAT /
+	PROD G ${nx} ${ny} 1* WAT /
 /
 
 COMPDAT
@@ -128,7 +128,7 @@ WCONPROD
 /
 
 TSTEP
-	${n_time}*10
+	${n_time}*1
 /
 
 

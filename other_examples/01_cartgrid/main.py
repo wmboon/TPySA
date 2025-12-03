@@ -6,14 +6,17 @@ import tpysa
 from opm.simulators import OnePhaseSimulator
 
 
-def main(nx=10):
+def main(nx=3):
     ## Input: Model and discretization parameters
     data = tpysa.default_data()
     data.update(
         {
             "inj_rate": 0.05,  # sm3/day
             "nx": nx,
-            "n_time": 50,
+            "n_time": 40,
+            # "mu": 3e9,
+            # "alpha": 1.0,
+            # "lambda": 2e9,
             "n_total_cells": nx**3,
             "vtk_writer": "Python",  # First run with "OPM", then "Python"
             "vtk_reset": False,
@@ -55,9 +58,9 @@ class CartBiot_Model(tpysa.Biot_Model):
         for well in schedule.get_wells(0):
             schedule.open_well(well.name, 0)
 
-        if len(schedule.reportsteps) > 25:
-            for well in schedule.get_wells(25):
-                schedule.shut_well(well.name, 25)
+        # if len(schedule.reportsteps) > 25:
+        #     for well in schedule.get_wells(25):
+        #         schedule.shut_well(well.name, 25)
 
 
 class CartGrid(tpysa.Grid):
@@ -67,22 +70,27 @@ class CartGrid(tpysa.Grid):
         super().tag_boundaries()
 
         # Put zero traction on the top boundary
-        self.tags["free_bdry"] = self.tags["domain_boundary_faces"].copy()
+        self.tags["fixed_bdry"] = np.logical_or(
+            np.isclose(self.face_centers[2], np.min(self.face_centers[2])),
+            np.isclose(self.face_centers[2], np.max(self.face_centers[2])),
+        )
+        self.tags["free_bdry"] = np.logical_xor(
+            self.tags["domain_boundary_faces"], self.tags["fixed_bdry"]
+        )
+        self.tags["sprng_bdry"] = np.zeros_like(self.tags["free_bdry"])
+        pass
         # np.isclose(
         #     self.face_centers[2], np.min(self.face_centers[2])
         # )
 
         # Clamp the bottom boundary
-        self.tags["fixed_bdry"] = np.zeros_like(self.tags["domain_boundary_faces"])
-        # np.isclose(
-        #     self.face_centers[2], np.max(self.face_centers[2])
-        # )
+        # np.zeros_like(self.tags["domain_boundary_faces"])
 
         # Put springs on the remaining boundaries
-        self.tags["sprng_bdry"] = np.logical_xor(
-            self.tags["domain_boundary_faces"],
-            np.logical_or(self.tags["free_bdry"], self.tags["fixed_bdry"]),
-        )
+        # self.tags["sprng_bdry"] = np.logical_xor(
+        #     self.tags["domain_boundary_faces"],
+        #     np.logical_or(self.tags["free_bdry"], self.tags["fixed_bdry"]),
+        # )
 
 
 if __name__ == "__main__":
