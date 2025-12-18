@@ -38,7 +38,7 @@ class TPSA:
         start_time = time.time()
 
         # The mean of mu is used to scale the resulting system
-        data["scaling"] = np.mean(data["mu"])
+        data["scaling"] = 1  # np.mean(data["mu"])
 
         # Extract the spring constant
         self.delta_bdry_over_mu = data.get(
@@ -67,6 +67,8 @@ class TPSA:
             )
         )
 
+        self.reorder_to_opm_ordering()
+
         if "ref_pressure" in data:
             self.ref_pressure = data["ref_pressure"]
         else:
@@ -92,6 +94,9 @@ class TPSA:
         # The blocks in the first column depend on the averaging operator Xi
         Xi = self.assemble_xi()
         A[1, 0], A[2, 0] = self.assemble_off_diagonal_terms(Xi, div_F, True)
+
+        # The (1, 1) block only gets a contribution due to bcs
+        A[1, 1] = self.assemble_rot_bc_term(div_F) * scale_factor
 
         # The blocks in the first row depend on the complementary operator Xi_tilde
         Xi_tilde = self.convert_to_xi_tilde(Xi)
@@ -210,6 +215,26 @@ class TPSA:
         # with zero (inverse) spring constant
 
         return mu_bar_over_dk
+
+    def assemble_rot_bc_term(self, div_F):
+        bdry_faces = self.sd.tags["domain_boundary_faces"]
+
+        grad = sps.block_diag(
+            [(0.5 * self.dk_mu * bdry_faces)[:, None] * self.sd.cell_faces] * 3
+        )
+        div = sps.block_diag([div_F] * 3)
+
+        nx, ny, nz = [sps.diags_array(ni) for ni in self.unit_normals]
+        proj = sps.block_array(
+            [
+                [None, -nz, ny],
+                [nz, None, -nx],
+                [-ny, nx, None],
+            ]
+        )
+        proj @= proj
+
+        return -div @ proj @ grad
 
     def assemble_xi(self) -> sps.sparray:
         """

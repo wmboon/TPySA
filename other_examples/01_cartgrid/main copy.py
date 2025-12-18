@@ -6,14 +6,14 @@ import tpysa
 from opm.simulators import OnePhaseSimulator
 
 
-def main(nx=1):
+def main(nx=5):
     ## Input: Model and discretization parameters
     data = tpysa.default_data()
     data.update(
         {
             "inj_rate": 0.05,  # sm3/day
             "nx": nx,
-            "n_time": 40,
+            "n_time": 20,
             # "mu": 3e9,
             # "alpha": 1.0,
             # "lambda": 2e9,
@@ -51,7 +51,7 @@ class CartBiot_Model(tpysa.Biot_Model):
         )
 
         dir_name = os.path.dirname(__file__)
-        template_file = os.path.join(dir_name, "template/CARTGRID.DATA")
+        template_file = os.path.join(dir_name, "template/GRID_5_BC_FREE.DATA")
         tpysa.generate_deck_from_template(template_file, self.deck_file, self.data)
 
     def operate_wells(self, schedule):
@@ -69,16 +69,16 @@ class CartGrid(tpysa.Grid):
     def tag_boundaries(self):
         super().tag_boundaries()
 
-        self.tags["free_bdry"] = self.tags["domain_boundary_faces"]
-        # self.tags["fixed_bdry"] = np.logical_or(
-        #     np.isclose(self.face_centers[2], np.min(self.face_centers[2])),
-        #     np.isclose(self.face_centers[2], np.max(self.face_centers[2])),
-        # )
-        # self.tags["free_bdry"] = np.logical_xor(
-        #     self.tags["domain_boundary_faces"], self.tags["fixed_bdry"]
-        # )
+        # self.tags["fixed_bdry"] = self.tags["domain_boundary_faces"].copy()
+        self.tags["fixed_bdry"] = np.logical_or(
+            np.isclose(self.face_centers[2], np.min(self.face_centers[2])),
+            np.isclose(self.face_centers[2], np.max(self.face_centers[2])),
+        )
+        self.tags["free_bdry"] = np.logical_xor(
+            self.tags["domain_boundary_faces"], self.tags["fixed_bdry"]
+        )
         self.tags["sprng_bdry"] = np.zeros_like(self.tags["free_bdry"])
-        pass
+        # pass
         # np.isclose(
         #     self.face_centers[2], np.min(self.face_centers[2])
         # )

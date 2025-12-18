@@ -94,7 +94,7 @@ class CartBiot_Model(tpysa.Biot_Model):
         source = source_func(self.grid.cell_centers)
         vol_source += source * self.grid.cell_volumes
 
-        self.coupler.process_source(vol_source, dt)
+        self.coupler.process_source(vol_source, dt=dt)
 
         if current_step < len(reportsteps) - 1:
             var_dict = tpysa.get_fluidstate_variables(self.sim)
@@ -133,9 +133,6 @@ class CartBiot_Model(tpysa.Biot_Model):
         err_pf = norm(fluid_p - p_ex) / norm(p_ex)
 
         self.coupler.save_errs(self.data["nx"], (err_u, err_r, err_ps, err_pf))
-
-        if self.vtk_writer_is_python:
-            self.write_vtk(current_step, fluid_p, displ, rotat, solid_p, vol_source)
 
         return solid_p
 
