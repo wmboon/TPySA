@@ -38,7 +38,7 @@ class TPSA:
         start_time = time.time()
 
         # The mean of mu is used to scale the resulting system
-        data["scaling"] = 1  # np.mean(data["mu"])
+        data["scaling"] = np.mean(data["mu"])
 
         # Extract the spring constant
         self.delta_bdry_over_mu = data.get(
@@ -66,8 +66,6 @@ class TPSA:
                 self.system.shape[0], time.time() - start_time
             )
         )
-
-        self.reorder_to_opm_ordering()
 
         if "ref_pressure" in data:
             self.ref_pressure = data["ref_pressure"]

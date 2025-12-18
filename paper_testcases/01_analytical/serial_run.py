@@ -1,7 +1,7 @@
 import os
 import numpy as np
 
-num_meshes = 3
+num_meshes = 7
 nx_list = np.floor(5 * 1.5 ** np.arange(num_meshes)).astype(int)
 
 dir_name = os.path.dirname(__file__)
